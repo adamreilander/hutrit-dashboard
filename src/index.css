@@ -1,0 +1,168 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ─── HUTRIT BRAND TOKENS ─── identidad real */
+:root {
+  --h-primary:     #0D5C54;
+  --h-primary-dk:  #094840;
+  --h-accent:      #0D9488;
+  --h-accent-soft: #F0FDFA;
+  --h-success:     #0D9488;
+  --h-warning:     #D97706;
+  --h-danger:      #DC2626;
+  --h-surface:     #F7FAFA;
+  --h-border:      #C8E0DD;
+  --h-text:        #0F2724;
+  --h-muted:       #5A8A85;
+  --h-white:       #FFFFFF;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --shadow-sm: 0 1px 3px rgba(13,92,84,0.08), 0 1px 2px rgba(13,92,84,0.04);
+  --shadow-md: 0 4px 12px rgba(13,92,84,0.10), 0 2px 4px rgba(13,92,84,0.04);
+  --shadow-lg: 0 10px 30px rgba(13,92,84,0.12), 0 4px 8px rgba(13,92,84,0.04);
+
+  --font-sans: 'Sora', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--h-surface);
+  color: var(--h-text);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font-family: var(--font-sans); cursor: pointer; border: none; background: none; }
+input, select, textarea { font-family: var(--font-sans); }
+a { color: inherit; text-decoration: none; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--h-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--h-muted); }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.fade-in { animation: fadeIn 0.35s ease forwards; }
+.slide-in { animation: slideIn 0.3s ease forwards; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 500; padding: 3px 8px;
+  border-radius: 20px; white-space: nowrap;
+}
+.badge-blue   { background: #CCFBF1; color: #0F766E; }
+.badge-green  { background: #CCFBF1; color: #0F766E; }
+.badge-amber  { background: #FEF3C7; color: #92400E; }
+.badge-red    { background: #FEE2E2; color: #991B1B; }
+.badge-gray   { background: #F1F5F9; color: #475569; }
+.badge-purple { background: #EDE9FE; color: #5B21B6; }
+
+.card {
+  background: var(--h-white);
+  border: 1px solid var(--h-border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary {
+  background: var(--h-primary);
+  color: white;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(13,92,84,0.30);
+}
+.btn-primary:hover { background: var(--h-primary-dk); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(13,92,84,0.40); }
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  background: var(--h-white);
+  color: var(--h-text);
+  border: 1px solid var(--h-border);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.2s;
+}
+.btn-secondary:hover { background: var(--h-accent-soft); border-color: var(--h-accent); color: var(--h-primary); }
+
+.btn-ghost {
+  color: var(--h-muted);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  display: inline-flex; align-items: center; gap: 5px;
+  transition: all 0.15s;
+}
+.btn-ghost:hover { background: var(--h-accent-soft); color: var(--h-primary); }
+
+.stat-card {
+  background: var(--h-white);
+  border: 1px solid var(--h-border);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.stat-label { font-size: 12px; color: var(--h-muted); margin-bottom: 4px; }
+.stat-value { font-size: 26px; font-weight: 600; color: var(--h-primary); line-height: 1; }
+.stat-sub   { font-size: 12px; color: var(--h-muted); margin-top: 4px; }
+
+.grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+
+.section-title {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--h-muted);
+  margin-bottom: 12px;
+}
+
+.divider { border: none; border-top: 1px solid var(--h-border); margin: 20px 0; }
+
+.input-field {
+  width: 100%; padding: 10px 14px;
+  border: 1px solid var(--h-border);
+  border-radius: var(--radius-md);
+  font-size: 14px; color: var(--h-text);
+  background: var(--h-white);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.input-field:focus {
+  border-color: var(--h-accent);
+  box-shadow: 0 0 0 3px rgba(13,148,136,0.12);
+}
+.input-field::placeholder { color: #9BBFBC; }
+
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  background: var(--h-accent-soft); color: var(--h-primary);
+  font-weight: 500; border: 1px solid rgba(13,148,136,0.2);
+}
+
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
