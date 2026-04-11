@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import {
   LayoutDashboard, Search, Users, Megaphone,
-  Mail, BarChart2, Palette, ChevronRight, ChevronLeft, Zap
+  Mail, BarChart2, Palette, ChevronRight, ChevronLeft, MessageSquare
 } from 'lucide-react'
 
 const NAV = [
   { id: 'comando',      icon: LayoutDashboard, label: 'Centro de mando',   badge: null },
+  { id: 'chat',         icon: MessageSquare,   label: 'Chat con agente',   badge: 'IA' },
   { id: 'inteligencia', icon: Search,           label: 'Inteligencia',      badge: 'Live' },
   { id: 'pipeline',     icon: Users,            label: 'Pipeline',          badge: '18' },
   { id: 'marketing',    icon: Megaphone,        label: 'Marketing',         badge: null },
