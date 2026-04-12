@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, FileText, TrendingUp, CheckCircle, Camera, Link, Instagram, ImagePlus, Send, AlertCircle, ExternalLink, Linkedin } from 'lucide-react'
+import { Calendar, FileText, TrendingUp, CheckCircle, Camera, Link, Instagram, ImagePlus, Send, AlertCircle, ExternalLink, Linkedin, Wand2, Download } from 'lucide-react'
 import { generateSEOPDF } from '../utils/generatePDF'
 
 const POSTS = [
@@ -173,6 +173,146 @@ function InstagramPublisher() {
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#9F1239' }}>Error al publicar</div>
                 <button className="btn-ghost" style={{ marginTop: 6, fontSize: 12 }} onClick={reset}>Reintentar</button>
               </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const STYLES = [
+  { id: 'profesional', label: 'Profesional' },
+  { id: 'minimalista', label: 'Minimalista' },
+  { id: 'impacto',     label: 'Alto impacto' },
+  { id: 'lifestyle',   label: 'Lifestyle' },
+]
+
+function CreativeGenerator() {
+  const [prompt,  setPrompt]  = useState('')
+  const [style,   setStyle]   = useState('profesional')
+  const [status,  setStatus]  = useState('idle') // idle | running | done | error
+  const [image,   setImage]   = useState(null) // { base64, mimeType }
+  const [error,   setError]   = useState('')
+
+  const generate = async () => {
+    if (!prompt.trim()) return
+    setStatus('running'); setImage(null); setError('')
+
+    try {
+      const resp = await fetch('/api/generate-creative', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt.trim(), style }),
+      })
+      const data = await resp.json()
+      if (data.success) { setStatus('done'); setImage({ base64: data.imageBase64, mimeType: data.mimeType }) }
+      else              { setStatus('error'); setError(data.error || 'Error generando imagen') }
+    } catch (err) {
+      setStatus('error'); setError(err.message)
+    }
+  }
+
+  const download = () => {
+    if (!image) return
+    const a = document.createElement('a')
+    a.href = `data:${image.mimeType};base64,${image.base64}`
+    a.download = `hutrit-creative-${Date.now()}.png`
+    a.click()
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#7C3AED15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Wand2 size={14} color="#7C3AED" />
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Generador de creativos IA</div>
+          <div style={{ fontSize: 11, color: 'var(--h-muted)' }}>Imagen para redes sociales · Gemini AI</div>
+        </div>
+      </div>
+
+      <div className="grid-2" style={{ alignItems: 'flex-start', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>Descripción del creativo *</label>
+            <textarea
+              className="input-field"
+              placeholder="ej: Profesional LATAM trabajando remotamente con su equipo europeo, ambiente moderno y colaborativo..."
+              value={prompt}
+              onChange={e => setPrompt(e.target.value)}
+              rows={3}
+              style={{ resize: 'vertical' }}
+              disabled={status === 'running'}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 6 }}>Estilo visual</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {STYLES.map(s => (
+                <button key={s.id} onClick={() => setStyle(s.id)} style={{
+                  padding: '5px 12px', fontSize: 12, borderRadius: 8, cursor: 'pointer',
+                  background: style === s.id ? '#7C3AED' : 'var(--h-surface)',
+                  color:      style === s.id ? 'white'   : 'var(--h-muted)',
+                  border:     `1.5px solid ${style === s.id ? '#7C3AED' : 'var(--h-border)'}`,
+                  fontWeight: style === s.id ? 600 : 400,
+                }}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            className="btn-primary"
+            onClick={generate}
+            disabled={status === 'running' || !prompt.trim()}
+            style={{ justifyContent: 'center', background: '#7C3AED', opacity: status === 'running' ? 0.7 : 1 }}
+          >
+            {status === 'running'
+              ? <><div className="spinner" />Generando imagen...</>
+              : <><Wand2 size={13} />Generar creativo</>}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {status === 'running' && (
+            <div style={{ background: 'var(--h-surface)', borderRadius: 10, padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+              <div className="spinner" style={{ width: 28, height: 28, borderWidth: 3, borderTopColor: '#7C3AED', borderColor: '#e9d5ff' }} />
+              <div style={{ fontSize: 12, color: 'var(--h-muted)', textAlign: 'center' }}>Generando imagen con Gemini AI...<br />Esto puede tardar 15-30 segundos</div>
+            </div>
+          )}
+          {status === 'done' && image && (
+            <div className="fade-in">
+              <img
+                src={`data:${image.mimeType};base64,${image.base64}`}
+                alt="Creativo generado"
+                style={{ width: '100%', borderRadius: 10, border: '1px solid var(--h-border)' }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button className="btn-primary" onClick={download} style={{ flex: 1, justifyContent: 'center', fontSize: 12 }}>
+                  <Download size={12} />Descargar PNG
+                </button>
+                <button className="btn-ghost" onClick={() => { setStatus('idle'); setImage(null) }} style={{ fontSize: 12 }}>
+                  Nueva imagen
+                </button>
+              </div>
+            </div>
+          )}
+          {status === 'error' && (
+            <div className="fade-in" style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: 10, padding: '14px 16px', display: 'flex', gap: 8 }}>
+              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#9F1239' }}>Error al generar</div>
+                <div style={{ fontSize: 12, color: '#DC2626', marginTop: 3 }}>{error}</div>
+                <button className="btn-ghost" onClick={() => setStatus('idle')} style={{ fontSize: 11, marginTop: 8 }}>Reintentar</button>
+              </div>
+            </div>
+          )}
+          {status === 'idle' && (
+            <div style={{ background: 'var(--h-surface)', borderRadius: 10, padding: '24px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, border: '1.5px dashed var(--h-border)', color: 'var(--h-muted)', minHeight: 160 }}>
+              <ImagePlus size={24} strokeWidth={1.5} />
+              <div style={{ fontSize: 12, textAlign: 'center' }}>La imagen aparecerá aquí<br />cuando se genere</div>
             </div>
           )}
         </div>
@@ -356,8 +496,12 @@ export function Marketing() {
         <button className="btn-secondary"><Calendar size={13} />Ver calendario completo</button>
       </div>
 
+      {/* Generador de creativos */}
+      <div className="section-title" style={{ marginTop: 28 }}>Generador de creativos IA</div>
+      <CreativeGenerator />
+
       {/* Publicadores */}
-      <div className="section-title" style={{ marginTop: 28 }}>Publicación directa</div>
+      <div className="section-title" style={{ marginTop: 8 }}>Publicación directa</div>
       <div className="grid-2" style={{ alignItems: 'flex-start' }}>
         <InstagramPublisher />
         <LinkedInPublisher />
