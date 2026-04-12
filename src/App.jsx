@@ -5,11 +5,13 @@ import Inteligencia from './pages/Inteligencia'
 import Pipeline from './pages/Pipeline'
 import VentasCRM from './pages/VentasCRM'
 import Chat from './pages/Chat'
+import Agente from './pages/Agente'
 import { Marketing, Marca, SEO } from './pages/OtherPages'
 import { Bell, Search } from 'lucide-react'
 
 const PAGE_TITLES = {
   comando:      'Centro de mando',
+  agente:       'Pipeline de Agente IA',
   chat:         'Chat con agente',
   inteligencia: 'Inteligencia de mercado',
   pipeline:     'Pipeline en vivo',
@@ -21,6 +23,7 @@ const PAGE_TITLES = {
 
 const PAGE_SUBTITLES = {
   comando:      'Orquesta todos los agentes desde aquí',
+  agente:       'Audita empresas, genera calendarios, creativos y envía outreach en un pipeline',
   chat:         'Conversación directa con Claude — tu copiloto de operaciones',
   inteligencia: 'Competidores, señales y tendencias del sector',
   pipeline:     'Seguimiento de empresas en proceso de outreach',
@@ -36,6 +39,7 @@ export default function App() {
   const renderPage = () => {
     switch (active) {
       case 'comando':      return <CentroMando />
+      case 'agente':       return <Agente />
       case 'chat':         return <Chat />
       case 'inteligencia': return <Inteligencia />
       case 'pipeline':     return <Pipeline />
