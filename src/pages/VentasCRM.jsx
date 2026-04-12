@@ -131,6 +131,13 @@ export default function VentasCRM() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const openInMailto = () => {
+    const subject = encodeURIComponent(resolveSubject())
+    const body = encodeURIComponent(resolvedBody())
+    const to = encodeURIComponent(emailTo || '')
+    window.open(`mailto:${to}?subject=${subject}&body=${body}`, '_blank')
+  }
+
   return (
     <div className="fade-in" style={{ padding: '28px 32px', maxWidth: 1000 }}>
       <div style={{ marginBottom: 24 }}>
@@ -243,6 +250,15 @@ export default function VentasCRM() {
                   {copied ? <><Check size={12} />Copiado</> : <><Copy size={12} />Copiar</>}
                 </button>
                 <button
+                  className="btn-ghost"
+                  onClick={openInMailto}
+                  disabled={!emailTo}
+                  style={{ fontSize: 12, opacity: !emailTo ? 0.5 : 1 }}
+                  title="Abre tu cliente de correo (Gmail, Outlook...) con el email pre-rellenado"
+                >
+                  <ExternalLink size={12} />Abrir en correo
+                </button>
+                <button
                   className="btn-primary"
                   onClick={sendEmail}
                   disabled={sending || !emailTo || !company}
@@ -250,7 +266,7 @@ export default function VentasCRM() {
                 >
                   {sending
                     ? <><div className="spinner" />Enviando...</>
-                    : <><Send size={12} />Enviar ahora</>}
+                    : <><Send size={12} />Enviar vía Resend</>}
                 </button>
               </div>
             </div>
