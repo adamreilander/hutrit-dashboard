@@ -9,8 +9,15 @@ const STARTERS = [
   'Genera 3 hooks para un carrusel de Instagram sobre talento LATAM',
 ]
 
+const STORAGE_KEY = 'hutrit_chat_history'
+
 export default function Chat() {
-  const [messages, setMessages] = useState([])
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
@@ -19,6 +26,12 @@ export default function Chat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    if (!loading) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)) } catch {}
+    }
+  }, [messages, loading])
 
   const send = async (text) => {
     const userText = text || input.trim()
@@ -78,7 +91,11 @@ export default function Chat() {
     }
   }
 
-  const clear = () => { setMessages([]); setInput('') }
+  const clear = () => {
+    setMessages([])
+    setInput('')
+    try { localStorage.removeItem(STORAGE_KEY) } catch {}
+  }
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxWidth: 820, margin: '0 auto', padding: '0 24px' }}>
@@ -90,7 +107,7 @@ export default function Chat() {
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Agente Hutrit</div>
-            <div style={{ fontSize: 11, color: 'var(--h-muted)' }}>claude-sonnet-4-6 · Listo</div>
+            <div style={{ fontSize: 11, color: 'var(--h-muted)' }}>claude-haiku-4-5 · {messages.length > 0 ? `${Math.ceil(messages.length / 2)} mensajes guardados` : 'Listo'}</div>
           </div>
         </div>
         {messages.length > 0 && (

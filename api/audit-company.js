@@ -7,6 +7,8 @@
 //   2. Streams Claude análisis en lenguaje natural
 //   3. Al final emite {"done": true, "audit": {...}} con el JSON estructurado
 
+export const maxDuration = 60
+
 import Anthropic from '@anthropic-ai/sdk'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
