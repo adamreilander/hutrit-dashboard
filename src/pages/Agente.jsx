@@ -3,8 +3,9 @@ import {
   Search, Mail, Calendar, Image, Send, FileText, Zap,
   CheckCircle, AlertCircle, Lock, ChevronDown, ChevronUp,
   Play, RotateCcw, Database, Copy, Check, ExternalLink,
-  Building, TrendingUp, Users, Target
+  Building, TrendingUp, Users, Target, Download
 } from 'lucide-react'
+import { generateAuditPDF } from '../utils/generatePDF'
 
 // ─── Definición de módulos ────────────────────────────────────────────────────
 
@@ -310,9 +311,20 @@ export default function Agente() {
               {auditStatus === 'done'    && <CheckCircle size={14} color="#059669" />}
               {auditStatus === 'error'   && <AlertCircle size={14} color="#DC2626" />}
             </div>
-            <button onClick={() => setAuditExpanded(v => !v)} style={{ color: 'var(--h-muted)', padding: 4 }}>
-              {auditExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {auditStatus === 'done' && auditJson && (
+                <button
+                  className="btn-secondary"
+                  onClick={() => generateAuditPDF(empresa, auditJson)}
+                  style={{ fontSize: 11, padding: '4px 10px' }}
+                >
+                  <Download size={11} />Exportar PDF
+                </button>
+              )}
+              <button onClick={() => setAuditExpanded(v => !v)} style={{ color: 'var(--h-muted)', padding: 4 }}>
+                {auditExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
           </div>
 
           {auditExpanded && (

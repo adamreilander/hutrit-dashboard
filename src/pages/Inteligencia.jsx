@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Search, ExternalLink, TrendingUp, AlertTriangle, Zap, Download } from 'lucide-react'
+import { generateIntelPDF } from '../utils/generatePDF'
 
 const COMPETITORS = [
   { name: 'TalentHub Pro',    url: 'talenthubpro.com', score: 8.2, ads: true,  pixel: true,  hiring: true,  sector: 'HR Tech',   threat: 'alta' },
@@ -35,7 +36,7 @@ export default function Inteligencia() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn-secondary"><Search size={13} /> Nuevo análisis</button>
-          <button className="btn-primary"><Download size={13} /> Exportar PDF</button>
+          <button className="btn-primary" onClick={() => generateIntelPDF('HR Tech / SaaS', COMPETITORS, TRENDS)}><Download size={13} /> Exportar PDF</button>
         </div>
       </div>
 

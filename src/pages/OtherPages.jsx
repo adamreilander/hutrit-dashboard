@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Calendar, FileText, TrendingUp, CheckCircle, Camera, Link, Instagram, ImagePlus, Send, AlertCircle, ExternalLink } from 'lucide-react'
+import { generateSEOPDF } from '../utils/generatePDF'
 
 const POSTS = [
   { date: 'Lun 14 Abr', channel: 'LinkedIn',  type: 'Artículo',   title: '5 errores al contratar talento tech en Europa', status: 'programado' },
@@ -324,7 +325,10 @@ export function SEO() {
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em' }}>SEO + Auditoría</h1>
           <p style={{ color: 'var(--h-muted)', fontSize: 13, marginTop: 4 }}>Análisis técnico, issues priorizados y reporte PDF</p>
         </div>
-        <button className="btn-primary">Generar PDF ↗</button>
+        <button className="btn-primary" onClick={() => {
+          const metrics = { score: 68, issuesCriticos: 12, palabrasTop10: 8, traficoOrganico: '1.4K' }
+          generateSEOPDF('hutrit.com', issues, metrics)
+        }}>Generar PDF ↗</button>
       </div>
 
       <div className="grid-4" style={{ marginBottom: 24 }}>
