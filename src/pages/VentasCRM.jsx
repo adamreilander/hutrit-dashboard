@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Mail, Send, Eye, MessageSquare, RefreshCw, Sparkles, Copy, Check } from 'lucide-react'
+import { Mail, Send, Eye, MessageSquare, RefreshCw, Sparkles, Copy, Check, AlertCircle, ExternalLink } from 'lucide-react'
 
-const EMAILS = [
+const EMAILS_INIT = [
   { id: 1, company: 'TechVenture BCN',  contact: 'Alex Comas',   subject: 'Cómo Hutrit puede ayudarte a contratar talento tech en 48h', status: 'replied',  sentAt: '07 Apr', opens: 4, reply: true  },
   { id: 2, company: 'AgroTech Iberia',  contact: 'Jordi Puig',   subject: 'Tu equipo tech crece — ¿tienes el proceso correcto?',        status: 'opened',   sentAt: '07 Apr', opens: 3, reply: false },
   { id: 3, company: 'CloudBridge SL',   contact: 'Pedro Ruiz',   subject: 'Cómo Hutrit puede ayudarte a contratar talento tech en 48h', status: 'sent',     sentAt: '08 Apr', opens: 0, reply: false },
@@ -27,34 +27,102 @@ Un saludo,
 Equipo Hutrit
 hutriteuropa@gmail.com`
 
-export default function VentasCRM() {
-  const [company, setCompany]   = useState('')
-  const [contact, setContact]   = useState('')
-  const [emailBody, setEmailBody] = useState(TEMPLATE)
-  const [generating, setGenerating] = useState(false)
-  const [sending, setSending]   = useState(false)
-  const [sent, setSent]         = useState(false)
-  const [copied, setCopied]     = useState(false)
-  const [activeTab, setActiveTab] = useState('redactor')
+const textToHtml = (text) =>
+  `<div style="font-family:sans-serif;font-size:14px;line-height:1.7;color:#111;max-width:600px">
+    <div style="background:#0D5C54;padding:16px 20px;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:10px;margin-bottom:0">
+      <div style="width:28px;height:28px;background:#0D9488;border-radius:6px;display:flex;align-items:center;justify-content:center">
+        <span style="color:white;font-weight:700;font-size:13px">H</span>
+      </div>
+      <span style="color:white;font-weight:700;font-size:15px">Hutrit Europa</span>
+    </div>
+    <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:24px">
+      ${text.replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>')}
+    </div>
+  </div>`
 
-  const generate = () => {
+export default function VentasCRM() {
+  const [company,    setCompany]    = useState('')
+  const [contact,    setContact]    = useState('')
+  const [emailTo,    setEmailTo]    = useState('')
+  const [subject,    setSubject]    = useState('Talento tech LATAM para {{empresa}} — Hutrit Europa')
+  const [emailBody,  setEmailBody]  = useState(TEMPLATE)
+  const [generating, setGenerating] = useState(false)
+  const [sending,    setSending]    = useState(false)
+  const [sendResult, setSendResult] = useState(null) // { success, id, error }
+  const [copied,     setCopied]     = useState(false)
+  const [activeTab,  setActiveTab]  = useState('redactor')
+  const [sentEmails, setSentEmails] = useState(EMAILS_INIT)
+
+  const resolveSubject = () => subject.replace(/{{empresa}}/g, company || 'tu empresa')
+
+  const generate = async () => {
     if (!company) return
     setGenerating(true)
-    setTimeout(() => {
-      const personalized = TEMPLATE
-        .replace(/{{nombre}}/g, contact || 'equipo')
-        .replace(/{{empresa}}/g, company)
-      setEmailBody(personalized)
-      setGenerating(false)
-    }, 1500)
+    try {
+      const res = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: 'outreach',
+          sector: `empresa llamada ${company}${contact ? `, contacto: ${contact}` : ''}`,
+        }),
+      })
+      const reader  = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = '', text = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const d = line.slice(6).trim()
+          if (d === '[DONE]') break
+          try { const { text: t } = JSON.parse(d); if (t) text += t } catch {}
+        }
+      }
+      setEmailBody(text || TEMPLATE.replace(/{{nombre}}/g, contact || 'equipo').replace(/{{empresa}}/g, company))
+    } catch {
+      setEmailBody(TEMPLATE.replace(/{{nombre}}/g, contact || 'equipo').replace(/{{empresa}}/g, company))
+    }
+    setGenerating(false)
   }
 
-  const sendEmail = () => {
+  const sendEmail = async () => {
+    if (!emailTo) return
     setSending(true)
-    setTimeout(() => { setSending(false); setSent(true) }, 2000)
+    setSendResult(null)
+    try {
+      const resp = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to:      emailTo,
+          subject: resolveSubject(),
+          html:    textToHtml(emailBody),
+          empresa: company,
+        }),
+      })
+      const data = await resp.json()
+      setSendResult(data)
+      if (data.success) {
+        const now = new Date()
+        const label = `${now.getDate().toString().padStart(2,'0')} ${now.toLocaleString('es',{month:'short'})}`
+        setSentEmails(prev => [{
+          id: Date.now(), company, contact, subject: resolveSubject(),
+          status: 'sent', sentAt: label, opens: 0, reply: false,
+        }, ...prev])
+      }
+    } catch (err) {
+      setSendResult({ success: false, error: err.message })
+    }
+    setSending(false)
   }
 
   const copyText = () => {
+    navigator.clipboard.writeText(emailBody).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -69,10 +137,10 @@ export default function VentasCRM() {
       {/* Stats */}
       <div className="grid-4" style={{ marginBottom: 24 }}>
         {[
-          { label: 'Emails enviados',    value: '18', sub: 'este mes' },
-          { label: 'Tasa de apertura',   value: '61%', sub: '+12% vs media' },
-          { label: 'Respondidos',        value: '4',  sub: 'tasa 22%' },
-          { label: 'Follow-ups pendientes', value: '3', sub: 'sin respuesta 4+ días' },
+          { label: 'Emails enviados',       value: sentEmails.length, sub: 'este mes' },
+          { label: 'Tasa de apertura',      value: '61%',  sub: '+12% vs media' },
+          { label: 'Respondidos',           value: sentEmails.filter(e => e.status === 'replied').length, sub: 'tasa 22%' },
+          { label: 'Follow-ups pendientes', value: sentEmails.filter(e => e.status === 'opened').length, sub: 'sin respuesta 4+ días' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-label">{s.label}</div>
@@ -83,18 +151,14 @@ export default function VentasCRM() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--h-border)', paddingBottom: 0 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--h-border)' }}>
         {[{ id: 'redactor', label: 'Redactor de email' }, { id: 'tracker', label: 'Tracker de envíos' }].map(t => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            style={{
-              padding: '8px 16px', fontSize: 13, fontWeight: 500,
-              borderBottom: `2px solid ${activeTab === t.id ? 'var(--h-accent)' : 'transparent'}`,
-              color: activeTab === t.id ? 'var(--h-accent)' : 'var(--h-muted)',
-              background: 'none', cursor: 'pointer', transition: 'all 0.15s',
-            }}
-          >
+          <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+            padding: '8px 16px', fontSize: 13, fontWeight: 500,
+            borderBottom: `2px solid ${activeTab === t.id ? 'var(--h-accent)' : 'transparent'}`,
+            color: activeTab === t.id ? 'var(--h-accent)' : 'var(--h-muted)',
+            background: 'none', cursor: 'pointer', transition: 'all 0.15s',
+          }}>
             {t.label}
           </button>
         ))}
@@ -105,10 +169,10 @@ export default function VentasCRM() {
           {/* Form izquierda */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="card">
-              <div className="section-title" style={{ marginBottom: 14 }}>Datos de la empresa</div>
+              <div className="section-title" style={{ marginBottom: 14 }}>Datos del destinatario</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>Empresa</label>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>Empresa *</label>
                   <input className="input-field" placeholder="ej: TechVenture BCN" value={company} onChange={e => setCompany(e.target.value)} />
                 </div>
                 <div>
@@ -116,20 +180,49 @@ export default function VentasCRM() {
                   <input className="input-field" placeholder="ej: Alex Comas" value={contact} onChange={e => setContact(e.target.value)} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>Email destino</label>
-                  <input className="input-field" placeholder="contacto@empresa.com" />
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>Email destino *</label>
+                  <input
+                    className="input-field"
+                    placeholder="contacto@empresa.com"
+                    type="email"
+                    value={emailTo}
+                    onChange={e => setEmailTo(e.target.value)}
+                  />
                 </div>
-                <button className="btn-secondary" onClick={generate} disabled={generating} style={{ justifyContent: 'center' }}>
-                  {generating ? <><div className="spinner" style={{ borderTopColor: 'var(--h-accent)', borderColor: 'var(--h-border)' }} />Generando...</>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>Asunto</label>
+                  <input className="input-field" value={subject} onChange={e => setSubject(e.target.value)} />
+                </div>
+                <button className="btn-secondary" onClick={generate} disabled={generating || !company} style={{ justifyContent: 'center' }}>
+                  {generating
+                    ? <><div className="spinner" style={{ borderTopColor: 'var(--h-accent)', borderColor: 'var(--h-border)' }} />Generando con IA...</>
                     : <><Sparkles size={13} />Personalizar email con IA</>}
                 </button>
               </div>
             </div>
 
-            {sent && (
-              <div className="fade-in" style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 'var(--radius-md)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Check size={16} color="#059669" />
-                <span style={{ fontSize: 13, color: '#065F46', fontWeight: 500 }}>Email enviado desde hutriteuropa@gmail.com</span>
+            {/* Feedback de envío */}
+            {sendResult && (
+              <div className="fade-in" style={{
+                background:  sendResult.success ? '#F0FDF4' : '#FFF1F2',
+                border:     `1px solid ${sendResult.success ? '#86EFAC' : '#FDA4AF'}`,
+                borderRadius: 'var(--radius-md)', padding: '12px 16px',
+                display: 'flex', alignItems: 'flex-start', gap: 8,
+              }}>
+                {sendResult.success
+                  ? <Check size={16} color="#059669" style={{ flexShrink: 0, marginTop: 1 }} />
+                  : <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0, marginTop: 1 }} />}
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: sendResult.success ? '#065F46' : '#9F1239' }}>
+                    {sendResult.success ? `Email enviado correctamente` : 'Error al enviar'}
+                  </div>
+                  {sendResult.success && sendResult.id && (
+                    <div style={{ fontSize: 11, color: '#0D9488', marginTop: 2 }}>Resend ID: {sendResult.id}</div>
+                  )}
+                  {!sendResult.success && (
+                    <div style={{ fontSize: 11, color: '#DC2626', marginTop: 2 }}>{sendResult.error}</div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -148,16 +241,23 @@ export default function VentasCRM() {
                 <button
                   className="btn-primary"
                   onClick={sendEmail}
-                  disabled={sending || sent}
-                  style={{ fontSize: 12, padding: '6px 12px', opacity: sent ? 0.7 : 1 }}
+                  disabled={sending || !emailTo || !company}
+                  style={{ fontSize: 12, padding: '6px 12px', opacity: (!emailTo || !company) ? 0.5 : 1 }}
                 >
-                  {sending ? <><div className="spinner" />Enviando...</>
-                    : sent ? <><Check size={12} />Enviado</>
+                  {sending
+                    ? <><div className="spinner" />Enviando...</>
                     : <><Send size={12} />Enviar ahora</>}
                 </button>
               </div>
             </div>
-            {/* Logo Hutrit en el email */}
+
+            {/* Asunto del email */}
+            <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--h-border)', background: '#fafafa' }}>
+              <span style={{ fontSize: 11, color: 'var(--h-muted)' }}>Asunto: </span>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>{resolveSubject()}</span>
+            </div>
+
+            {/* Header del email */}
             <div style={{ padding: '16px', borderBottom: '1px solid var(--h-border)', background: 'var(--h-primary)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--h-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -166,6 +266,7 @@ export default function VentasCRM() {
                 <span style={{ color: 'white', fontWeight: 700, fontSize: 14 }}>Hutrit Europa</span>
               </div>
             </div>
+
             <textarea
               value={emailBody}
               onChange={e => setEmailBody(e.target.value)}
@@ -173,10 +274,11 @@ export default function VentasCRM() {
                 width: '100%', border: 'none', outline: 'none', resize: 'none',
                 fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--h-text)',
                 lineHeight: 1.7, padding: '16px', minHeight: 260, background: 'white',
+                boxSizing: 'border-box',
               }}
             />
             <div style={{ padding: '10px 16px', borderTop: '1px solid var(--h-border)', background: 'var(--h-surface)' }}>
-              <span style={{ fontSize: 11, color: 'var(--h-muted)' }}>Desde: hutriteuropa@gmail.com · Incluye logo y firma Hutrit</span>
+              <span style={{ fontSize: 11, color: 'var(--h-muted)' }}>Desde: onboarding@resend.dev · Powered by Resend</span>
             </div>
           </div>
         </div>
@@ -195,8 +297,8 @@ export default function VentasCRM() {
               </tr>
             </thead>
             <tbody>
-              {EMAILS.map((e, i) => {
-                const s = statusConfig[e.status]
+              {sentEmails.map((e, i) => {
+                const s = statusConfig[e.status] || statusConfig.sent
                 return (
                   <tr key={e.id} style={{ borderBottom: '1px solid var(--h-border)', background: i % 2 === 0 ? 'white' : 'var(--h-surface)' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, fontSize: 13 }}>{e.company}</td>
@@ -215,7 +317,7 @@ export default function VentasCRM() {
                       <span className={`badge ${s.badge}`}>{s.label}</span>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      {e.status === 'sent' && !e.reply && (
+                      {e.status === 'sent' && (
                         <button className="btn-ghost" style={{ fontSize: 11, padding: '4px 8px' }}>
                           <RefreshCw size={11} />Follow-up
                         </button>

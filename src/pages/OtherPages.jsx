@@ -1,4 +1,5 @@
-import { Calendar, FileText, TrendingUp, CheckCircle, Camera, Link } from 'lucide-react'
+import { useState } from 'react'
+import { Calendar, FileText, TrendingUp, CheckCircle, Camera, Link, Instagram, ImagePlus, Send, AlertCircle, ExternalLink } from 'lucide-react'
 
 const POSTS = [
   { date: 'Lun 14 Abr', channel: 'LinkedIn',  type: 'Artículo',   title: '5 errores al contratar talento tech en Europa', status: 'programado' },
@@ -10,6 +11,174 @@ const POSTS = [
 
 const statusColor = { programado: 'badge-green', borrador: 'badge-amber', idea: 'badge-gray' }
 const channelColor = { LinkedIn: '#0A66C2', Instagram: '#E1306C' }
+
+function InstagramPublisher() {
+  const [mode,      setMode]      = useState('single') // 'single' | 'carousel'
+  const [urlsText,  setUrlsText]  = useState('')
+  const [caption,   setCaption]   = useState('')
+  const [log,       setLog]       = useState([])
+  const [status,    setStatus]    = useState('idle') // idle | running | done | error
+  const [postId,    setPostId]    = useState('')
+
+  const addLog = (msg) => setLog(prev => [...prev, msg])
+
+  const publish = async () => {
+    const urls = urlsText.split('\n').map(u => u.trim()).filter(Boolean)
+    if (!urls.length) return
+    if (mode === 'carousel' && urls.length < 2) {
+      setLog(['El carousel necesita mínimo 2 URLs']); setStatus('error'); return
+    }
+
+    setStatus('running'); setLog([]); setPostId('')
+
+    try {
+      const resp = await fetch('/api/publish-instagram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrls: urls, caption }),
+      })
+
+      const reader  = resp.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const data = JSON.parse(line.slice(6))
+            if (data.log) addLog(data.log)
+            if (data.done) {
+              if (data.success) { setStatus('done'); setPostId(data.postId || '') }
+              else              { setStatus('error'); addLog(`Error: ${data.error}`) }
+            }
+          } catch {}
+        }
+      }
+    } catch (err) {
+      setStatus('error'); addLog(`Error de red: ${err.message}`)
+    }
+  }
+
+  const reset = () => { setStatus('idle'); setLog([]); setPostId(''); }
+
+  return (
+    <div className="card" style={{ marginTop: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#E1306C15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Camera size={14} color="#E1306C" />
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Publicar en Instagram</div>
+          <div style={{ fontSize: 11, color: 'var(--h-muted)' }}>@hutrit_club · vía Graph API</div>
+        </div>
+      </div>
+
+      {/* Modo */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        {[{ id: 'single', label: 'Imagen única' }, { id: 'carousel', label: 'Carousel (2-10)' }].map(m => (
+          <button key={m.id} onClick={() => { setMode(m.id); reset() }} style={{
+            padding: '6px 14px', fontSize: 12, fontWeight: 500, borderRadius: 8, cursor: 'pointer',
+            background: mode === m.id ? 'var(--h-accent)' : 'var(--h-surface)',
+            color:      mode === m.id ? 'white'           : 'var(--h-muted)',
+            border:     `1.5px solid ${mode === m.id ? 'var(--h-accent)' : 'var(--h-border)'}`,
+          }}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid-2" style={{ alignItems: 'flex-start', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>
+              {mode === 'carousel' ? 'URLs de imágenes (una por línea, 2-10)' : 'URL de imagen pública'}
+            </label>
+            <textarea
+              className="input-field"
+              placeholder={mode === 'carousel'
+                ? 'https://i.imgur.com/slide1.png\nhttps://i.imgur.com/slide2.png\n...'
+                : 'https://i.imgur.com/imagen.png'}
+              value={urlsText}
+              onChange={e => setUrlsText(e.target.value)}
+              rows={mode === 'carousel' ? 5 : 2}
+              style={{ resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 12 }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>Caption</label>
+            <textarea
+              className="input-field"
+              placeholder="Escribe el caption con hashtags..."
+              value={caption}
+              onChange={e => setCaption(e.target.value)}
+              rows={4}
+              style={{ resize: 'vertical' }}
+            />
+          </div>
+          <button
+            className="btn-primary"
+            onClick={publish}
+            disabled={status === 'running' || !urlsText.trim()}
+            style={{ justifyContent: 'center', background: '#E1306C', opacity: status === 'running' ? 0.7 : 1 }}
+          >
+            {status === 'running'
+              ? <><div className="spinner" />Publicando...</>
+              : <><Send size={13} />Publicar en Instagram</>}
+          </button>
+        </div>
+
+        {/* Log / resultado */}
+        <div>
+          {log.length > 0 && (
+            <div style={{ background: '#0D1117', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', marginBottom: 8, letterSpacing: '0.06em' }}>PROGRESO</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                {log.map((msg, i) => (
+                  <div key={i} style={{ color: msg.startsWith('Error') ? '#F87171' : '#86EFAC' }}>{msg}</div>
+                ))}
+                {status === 'running' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94A3B8' }}>
+                    <div className="spinner" style={{ width: 10, height: 10, borderWidth: 1.5, borderTopColor: '#94A3B8', borderColor: '#334155' }} />
+                    Procesando...
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {status === 'done' && (
+            <div className="fade-in" style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <CheckCircle size={16} color="#059669" />
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#065F46' }}>Publicado en Instagram</span>
+              </div>
+              {postId && (
+                <div style={{ fontSize: 11, color: '#0D9488' }}>Post ID: {postId}</div>
+              )}
+              <button className="btn-ghost" style={{ marginTop: 8, fontSize: 12 }} onClick={reset}>Nueva publicación</button>
+            </div>
+          )}
+
+          {status === 'error' && (
+            <div className="fade-in" style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: 10, padding: '14px 16px', display: 'flex', gap: 8 }}>
+              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#9F1239' }}>Error al publicar</div>
+                <button className="btn-ghost" style={{ marginTop: 6, fontSize: 12 }} onClick={reset}>Reintentar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function Marketing() {
   return (
@@ -65,10 +234,13 @@ export function Marketing() {
         </table>
       </div>
 
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 0 }}>
         <button className="btn-primary"><FileText size={13} />Generar contenido con IA</button>
         <button className="btn-secondary"><Calendar size={13} />Ver calendario completo</button>
       </div>
+
+      {/* Publicador de Instagram */}
+      <InstagramPublisher />
     </div>
   )
 }
