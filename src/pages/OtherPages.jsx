@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, FileText, TrendingUp, CheckCircle, Camera, Link, Instagram, ImagePlus, Send, AlertCircle, ExternalLink } from 'lucide-react'
+import { Calendar, FileText, TrendingUp, CheckCircle, Camera, Link, Instagram, ImagePlus, Send, AlertCircle, ExternalLink, Linkedin } from 'lucide-react'
 import { generateSEOPDF } from '../utils/generatePDF'
 
 const POSTS = [
@@ -181,6 +181,122 @@ function InstagramPublisher() {
   )
 }
 
+function LinkedInPublisher() {
+  const [text,     setText]     = useState('')
+  const [imageUrl, setImageUrl] = useState('')
+  const [status,   setStatus]   = useState('idle') // idle | running | done | error
+  const [result,   setResult]   = useState('')
+  const [error,    setError]    = useState('')
+
+  const publish = async () => {
+    if (!text.trim()) return
+    setStatus('running'); setResult(''); setError('')
+
+    try {
+      const resp = await fetch('/api/publish-linkedin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim(), imageUrl: imageUrl.trim() || undefined }),
+      })
+      const data = await resp.json()
+      if (data.success) { setStatus('done'); setResult(data.message || 'Publicado') }
+      else              { setStatus('error'); setError(data.error || 'Error desconocido') }
+    } catch (err) {
+      setStatus('error'); setError(err.message)
+    }
+  }
+
+  const reset = () => { setStatus('idle'); setResult(''); setError('') }
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#0A66C215', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Link size={14} color="#0A66C2" />
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Publicar en LinkedIn</div>
+          <div style={{ fontSize: 11, color: 'var(--h-muted)' }}>@hutrit_europa · vía Make.com webhook</div>
+        </div>
+      </div>
+
+      <div className="grid-2" style={{ alignItems: 'flex-start', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>
+              Texto del post *
+            </label>
+            <textarea
+              className="input-field"
+              placeholder="Escribe el texto del post de LinkedIn..."
+              value={text}
+              onChange={e => setText(e.target.value)}
+              rows={5}
+              style={{ resize: 'vertical' }}
+              disabled={status === 'running'}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>
+              URL de imagen (opcional)
+            </label>
+            <input
+              className="input-field"
+              placeholder="https://i.imgur.com/imagen.png"
+              value={imageUrl}
+              onChange={e => setImageUrl(e.target.value)}
+              disabled={status === 'running'}
+            />
+          </div>
+          <button
+            className="btn-primary"
+            onClick={publish}
+            disabled={status === 'running' || !text.trim()}
+            style={{ justifyContent: 'center', background: '#0A66C2', opacity: status === 'running' ? 0.7 : 1 }}
+          >
+            {status === 'running'
+              ? <><div className="spinner" />Publicando...</>
+              : <><Send size={13} />Publicar en LinkedIn</>}
+          </button>
+        </div>
+
+        <div>
+          {status === 'done' && (
+            <div className="fade-in" style={{ background: '#EFF6FF', border: '1px solid #93C5FD', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <CheckCircle size={16} color="#1D4ED8" />
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>Publicado en LinkedIn</span>
+              </div>
+              <div style={{ fontSize: 12, color: '#1D4ED8' }}>{result}</div>
+              <button className="btn-ghost" style={{ marginTop: 8, fontSize: 12 }} onClick={reset}>Nueva publicación</button>
+            </div>
+          )}
+          {status === 'error' && (
+            <div className="fade-in" style={{ background: '#FFF1F2', border: '1px solid #FDA4AF', borderRadius: 10, padding: '14px 16px', display: 'flex', gap: 8 }}>
+              <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#9F1239' }}>Error al publicar</div>
+                <div style={{ fontSize: 12, color: '#DC2626', marginTop: 3 }}>{error}</div>
+                <button className="btn-ghost" style={{ marginTop: 6, fontSize: 12 }} onClick={reset}>Reintentar</button>
+              </div>
+            </div>
+          )}
+          {status === 'idle' && (
+            <div style={{ background: 'var(--h-surface)', borderRadius: 10, padding: '14px 16px', fontSize: 12, color: 'var(--h-muted)', lineHeight: 1.6 }}>
+              <div style={{ fontWeight: 500, color: 'var(--h-text)', marginBottom: 6 }}>Cómo funciona</div>
+              <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <li>El post se envía al webhook de Make.com</li>
+                <li>Make publica automáticamente en tu perfil LinkedIn</li>
+                <li>Si incluyes imagen, se adjunta al post</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Marketing() {
   return (
     <div className="fade-in" style={{ padding: '28px 32px', maxWidth: 900 }}>
@@ -240,8 +356,12 @@ export function Marketing() {
         <button className="btn-secondary"><Calendar size={13} />Ver calendario completo</button>
       </div>
 
-      {/* Publicador de Instagram */}
-      <InstagramPublisher />
+      {/* Publicadores */}
+      <div className="section-title" style={{ marginTop: 28 }}>Publicación directa</div>
+      <div className="grid-2" style={{ alignItems: 'flex-start' }}>
+        <InstagramPublisher />
+        <LinkedInPublisher />
+      </div>
     </div>
   )
 }
