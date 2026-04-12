@@ -437,7 +437,112 @@ function LinkedInPublisher() {
   )
 }
 
+const FOCOS = [
+  { id: 'ambos', label: 'B2B + B2C' },
+  { id: 'b2b',   label: 'Solo B2B' },
+  { id: 'b2c',   label: 'Solo B2C' },
+]
+
+function CalendarGenerator({ onCalendarGenerated }) {
+  const [sector,  setSector]  = useState('HR Tech / SaaS')
+  const [semanas, setSemanas] = useState(2)
+  const [foco,    setFoco]    = useState('ambos')
+  const [status,  setStatus]  = useState('idle')
+  const [error,   setError]   = useState('')
+
+  const generate = async () => {
+    setStatus('running'); setError('')
+    try {
+      const resp = await fetch('/api/generate-calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sector, semanas, foco }),
+      })
+      const data = await resp.json()
+      if (data.success) {
+        setStatus('done')
+        onCalendarGenerated(data.calendar)
+      } else {
+        setStatus('error'); setError(data.error || 'Error generando calendario')
+      }
+    } catch (err) {
+      setStatus('error'); setError(err.message)
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 16, padding: '14px 18px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 7, background: '#0D948815', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Calendar size={13} color="#0D9488" />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Generar calendario con IA</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flex: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            className="input-field"
+            placeholder="Sector objetivo"
+            value={sector}
+            onChange={e => setSector(e.target.value)}
+            style={{ flex: '1 1 160px', height: 34 }}
+            disabled={status === 'running'}
+          />
+          <select
+            className="input-field"
+            value={semanas}
+            onChange={e => setSemanas(Number(e.target.value))}
+            style={{ flex: '0 0 110px', height: 34 }}
+            disabled={status === 'running'}
+          >
+            {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n} semana{n > 1 ? 's' : ''}</option>)}
+          </select>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {FOCOS.map(f => (
+              <button key={f.id} onClick={() => setFoco(f.id)} style={{
+                padding: '5px 10px', fontSize: 11, borderRadius: 7, cursor: 'pointer', height: 34,
+                background: foco === f.id ? 'var(--h-accent)' : 'var(--h-surface)',
+                color:      foco === f.id ? 'white'           : 'var(--h-muted)',
+                border:     `1.5px solid ${foco === f.id ? 'var(--h-accent)' : 'var(--h-border)'}`,
+                fontWeight: foco === f.id ? 600 : 400,
+              }}>{f.label}</button>
+            ))}
+          </div>
+        </div>
+        <button
+          className="btn-primary"
+          onClick={generate}
+          disabled={status === 'running' || !sector.trim()}
+          style={{ opacity: status === 'running' ? 0.7 : 1, whiteSpace: 'nowrap' }}
+        >
+          {status === 'running'
+            ? <><div className="spinner" />Generando...</>
+            : <><FileText size={13} />Generar con IA</>}
+        </button>
+      </div>
+      {status === 'error' && (
+        <div style={{ marginTop: 10, fontSize: 12, color: '#DC2626' }}>{error}</div>
+      )}
+    </div>
+  )
+}
+
 export function Marketing() {
+  const [aiCalendar, setAiCalendar] = useState(null)
+
+  const displayPosts = aiCalendar
+    ? aiCalendar.map(p => ({
+        date:    p.dia,
+        channel: p.canal,
+        type:    p.tipo,
+        title:   p.titulo,
+        status:  'borrador',
+        desc:    p.descripcion,
+        hashtags: p.hashtags,
+        cta:     p.cta,
+      }))
+    : POSTS.map(p => ({ date: p.date, channel: p.channel, type: p.type, title: p.title, status: p.status }))
+
   return (
     <div className="fade-in" style={{ padding: '28px 32px', maxWidth: 900 }}>
       <div style={{ marginBottom: 24 }}>
@@ -447,10 +552,10 @@ export function Marketing() {
 
       <div className="grid-4" style={{ marginBottom: 24 }}>
         {[
-          { label: 'Posts este mes', value: '12', sub: 'LinkedIn + Instagram' },
+          { label: 'Posts este mes', value: aiCalendar ? String(aiCalendar.length) : '12', sub: 'LinkedIn + Instagram' },
           { label: 'Engagement rate', value: '4.8%', sub: '+1.2% vs anterior' },
           { label: 'Alcance total', value: '28K',  sub: 'últimos 30 días' },
-          { label: 'Contenido pendiente', value: '5', sub: 'por publicar' },
+          { label: 'Contenido pendiente', value: aiCalendar ? String(aiCalendar.length) : '5', sub: 'por publicar' },
         ].map(s => (
           <div key={s.label} className="stat-card">
             <div className="stat-label">{s.label}</div>
@@ -460,35 +565,53 @@ export function Marketing() {
         ))}
       </div>
 
-      <div className="section-title">Calendario editorial — próximos 7 días</div>
+      {/* Generador de calendario */}
+      <CalendarGenerator onCalendarGenerated={setAiCalendar} />
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div className="section-title" style={{ margin: 0 }}>
+          {aiCalendar ? `Calendario generado por IA — ${aiCalendar.length} publicaciones` : 'Calendario editorial — próximos 7 días'}
+        </div>
+        {aiCalendar && (
+          <button className="btn-ghost" onClick={() => setAiCalendar(null)} style={{ fontSize: 11 }}>
+            Ver calendario base
+          </button>
+        )}
+      </div>
+
       <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'var(--h-surface)' }}>
-              {['Fecha', 'Canal', 'Tipo', 'Título', 'Estado'].map(h => (
-                <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--h-muted)', letterSpacing: '0.04em', borderBottom: '1px solid var(--h-border)' }}>
-                  {h.toUpperCase()}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {POSTS.map((p, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid var(--h-border)', background: i % 2 === 0 ? 'white' : 'var(--h-surface)' }}>
-                <td style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{p.date}</td>
-                <td style={{ padding: '12px 16px' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500, color: channelColor[p.channel] }}>
-                    {p.channel === 'LinkedIn' ? <Link size={12} /> : <Camera size={12} />}
-                    {p.channel}
-                  </span>
-                </td>
-                <td style={{ padding: '12px 16px' }}><span className="tag">{p.type}</span></td>
-                <td style={{ padding: '12px 16px', fontSize: 12 }}>{p.title}</td>
-                <td style={{ padding: '12px 16px' }}><span className={`badge ${statusColor[p.status]}`}>{p.status}</span></td>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--h-surface)' }}>
+                {['Fecha', 'Canal', 'Tipo', 'Título', ...(aiCalendar ? ['Descripción'] : []), 'Estado'].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'var(--h-muted)', letterSpacing: '0.04em', borderBottom: '1px solid var(--h-border)', whiteSpace: 'nowrap' }}>
+                    {h.toUpperCase()}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {displayPosts.map((p, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--h-border)', background: i % 2 === 0 ? 'white' : 'var(--h-surface)' }}>
+                  <td style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{p.date}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500, color: channelColor[p.channel] || channelColor.LinkedIn }}>
+                      {p.channel === 'LinkedIn' ? <Link size={12} /> : <Camera size={12} />}
+                      {p.channel}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px' }}><span className="tag">{p.type}</span></td>
+                  <td style={{ padding: '12px 16px', fontSize: 12, maxWidth: 220 }}>{p.title}</td>
+                  {aiCalendar && (
+                    <td style={{ padding: '12px 16px', fontSize: 11, color: 'var(--h-muted)', maxWidth: 200, lineHeight: 1.4 }}>{p.desc}</td>
+                  )}
+                  <td style={{ padding: '12px 16px' }}><span className={`badge ${statusColor[p.status] || 'badge-gray'}`}>{p.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 0 }}>
