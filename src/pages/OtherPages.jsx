@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, FileText, TrendingUp, CheckCircle, Camera, Link, Instagram, ImagePlus, Send, AlertCircle, ExternalLink, Linkedin, Wand2, Download } from 'lucide-react'
+import { Calendar, FileText, TrendingUp, CheckCircle, Camera, Link, ImagePlus, Send, AlertCircle, ExternalLink, Wand2, Download } from 'lucide-react'
 import { generateSEOPDF } from '../utils/generatePDF'
 
 const POSTS = [

@@ -90,6 +90,10 @@ export default function VentasCRM() {
     setGenerating(false)
   }
 
+  const resolvedBody = () => emailBody
+    .replace(/{{nombre}}/g,  contact || 'equipo')
+    .replace(/{{empresa}}/g, company || 'vuestra empresa')
+
   const sendEmail = async () => {
     if (!emailTo) return
     setSending(true)
@@ -101,7 +105,7 @@ export default function VentasCRM() {
         body: JSON.stringify({
           to:      emailTo,
           subject: resolveSubject(),
-          html:    textToHtml(emailBody),
+          html:    textToHtml(resolvedBody()),
           empresa: company,
         }),
       })
