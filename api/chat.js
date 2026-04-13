@@ -376,61 +376,237 @@ ${bodyHtml}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SYSTEM PROMPT
+// GENERADOR DE CONTENIDO — Claude solo genera texto, no decide herramientas
+// Evita que Claude diga "no puedo" porque no le preguntamos si puede o no.
 // ═══════════════════════════════════════════════════════════════════════════════
-const SYSTEM = `Eres Hutrit Agent — el agente ejecutor de Hutrit Europa. Ejecutas tareas usando las herramientas conectadas. No explicas limitaciones. Solo actúas.
+async function generateContent(prompt, maxTokens = 800) {
+  const resp = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: maxTokens,
+    system: 'Eres el redactor de Hutrit Europa. Hutrit conecta empresas europeas con talento remoto LATAM (tech, marketing, ventas, diseño). Responde siempre en español. Devuelve SOLO el contenido solicitado, sin explicaciones ni comentarios.',
+    messages: [{ role: 'user', content: prompt }],
+  })
+  return resp.content.find(b => b.type === 'text')?.text || ''
+}
 
-━━━ REGLA ÚNICA ━━━
-Cuando el usuario pide hacer algo → HAZLO. Llama la herramienta directamente.
+// ═══════════════════════════════════════════════════════════════════════════════
+// DETECCIÓN DE PIPELINE — determina qué acción ejecutar sin preguntarle a Claude
+// ═══════════════════════════════════════════════════════════════════════════════
+function detectPipeline(text) {
+  const t = text.toLowerCase()
+  const hasLinkedIn   = t.includes('linkedin')
+  const hasInstagram  = t.includes('instagram')
+  const hasSocial     = hasLinkedIn || hasInstagram
+  const hasPublish    = t.includes('publica') || t.includes('publicar') || t.includes('post')
+  const hasImage      = t.includes('imagen') || t.includes('estático') || t.includes('estatico') || t.includes('visual') || t.includes('creativo')
+  const hasEmail      = t.includes('email') || t.includes('correo') || t.includes('envia') || t.includes('envía') || t.includes('manda')
+  const hasOutreach   = t.includes('outreach') || (hasEmail && (t.includes('empresa') || t.includes('agencia') || t.includes('cliente')))
+  const hasProspect   = t.includes('busca') && (t.includes('empresa') || t.includes('agencia') || t.includes('startup'))
+  const hasCalendar   = t.includes('calendario') || t.includes('plan de contenido') || t.includes('semana')
+  const hasAudit      = t.includes('audita') || t.includes('auditoria') || t.includes('audit')
+  const hasGenImage   = t.includes('genera') && hasImage && !hasSocial
 
-━━━ PROHIBIDO ABSOLUTO ━━━
-Está prohibido escribir cualquiera de estas cosas:
-• Tablas de "lo que puedo / no puedo hacer"
-• "No tengo acceso a LinkedIn"
-• "No puedo enviar emails"
-• "No tengo conexión con..."
-• "No es posible porque..."
-• Cualquier análisis de tus propias limitaciones
+  if (hasImage && hasPublish && hasLinkedIn) return 'image_post_linkedin'
+  if (hasImage && hasPublish && hasInstagram) return 'image_post_instagram'
+  if (hasPublish && hasLinkedIn)              return 'text_post_linkedin'
+  if (hasPublish && hasInstagram)             return 'text_post_instagram'
+  if (hasProspect && hasOutreach)             return 'prospect_and_outreach'
+  if (hasAudit && hasEmail)                   return 'audit_and_email'
+  if (hasGenImage)                            return 'generate_image_only'
+  if (hasCalendar)                            return 'generate_calendar'
+  if (hasEmail && t.includes('@'))            return 'send_email_direct'
+  return null
+}
 
-Si escribes algo de lo anterior, estás fallando en tu función.
+// ═══════════════════════════════════════════════════════════════════════════════
+// PIPELINES — ejecutan acciones directamente sin pasar por tool_use de Claude
+// ═══════════════════════════════════════════════════════════════════════════════
+async function runPipeline(pipeline, userMessage, messages, sse) {
+  const ctx = `Petición del usuario: "${userMessage}"`
 
-━━━ HERRAMIENTAS DISPONIBLES (todas funcionan) ━━━
-• send_email → envía emails reales vía Resend
-• publish_linkedin → publica en LinkedIn de Hutrit vía Make.com
-• publish_instagram → publica en Instagram de Hutrit
-• search_web → busca en Google vía Apify
-• scrape_url → lee el contenido de cualquier URL
-• prospect_companies → encuentra empresas reales con Google Maps
-• generate_image → genera imágenes con Gemini IA
-• save_to_notion → guarda páginas en Notion de Hutrit
-• export_pdf → genera PDF descargable con branding Hutrit
+  // ── Publicar en LinkedIn con imagen ──────────────────────────────────────────
+  if (pipeline === 'image_post_linkedin') {
+    sse({ text: 'Generando imagen...\n' })
+    const imgPrompt = await generateContent(`${ctx}\n\nEscribe un prompt en inglés de una frase para generar una imagen profesional para LinkedIn de Hutrit Europa. Solo el prompt, sin explicación.`, 150)
+    sse({ toolCall: { name: 'generate_image', input: { prompt: imgPrompt, style: 'profesional' } } })
+    const img = await executeTool('generate_image', { prompt: imgPrompt, style: 'profesional' })
+    sse({ toolResult: { name: 'generate_image', ...img } })
 
-━━━ CÓMO ACTUAR ━━━
-Usuario: "Publica en LinkedIn: [texto]"
-→ Dices: "Publicando en LinkedIn..." → llamas publish_linkedin
+    sse({ text: 'Redactando post...\n' })
+    const postText = await generateContent(`${ctx}\n\nEscribe un post de LinkedIn en español para Hutrit Europa. Máximo 3 párrafos + hashtags. Solo el texto del post.`)
 
-Usuario: "Envía email a ceo@empresa.com sobre talento LATAM"
-→ Dices: "Enviando email a ceo@empresa.com..." → llamas send_email
+    sse({ text: 'Publicando en LinkedIn...\n' })
+    sse({ toolCall: { name: 'publish_linkedin', input: { text: postText } } })
+    const pub = await executeTool('publish_linkedin', { text: postText, imageBase64: img.imageBase64, mimeType: img.mimeType })
+    sse({ toolResult: { name: 'publish_linkedin', ...pub } })
 
-Usuario: "Busca 5 agencias en Valencia y mándales outreach"
-→ Dices: "Buscando agencias en Valencia..." → llamas prospect_companies
-→ Generas emails personalizados para cada una en tu respuesta
-→ Envías cada email → llamas send_email para cada una
+    sse({ text: pub.success ? `\n✅ Publicado en LinkedIn.\n\n---\n${postText}` : `\n❌ Error al publicar: ${pub.error}` })
+    return
+  }
 
-Usuario: "Genera una imagen para LinkedIn sobre talento LATAM"
-→ Dices: "Generando imagen..." → llamas generate_image
+  // ── Publicar en LinkedIn solo texto ──────────────────────────────────────────
+  if (pipeline === 'text_post_linkedin') {
+    sse({ text: 'Redactando post para LinkedIn...\n' })
+    const postText = await generateContent(`${ctx}\n\nEscribe un post de LinkedIn en español para Hutrit Europa. Máximo 3 párrafos + hashtags. Solo el texto del post.`)
 
-━━━ PIPELINES ━━━
-Para tareas con múltiples pasos: ejecuta paso a paso sin pedir permiso.
-Muestra el progreso de cada acción completada.
-Si una herramienta falla, continúa con las demás e informa el fallo al final.
+    sse({ text: 'Publicando en LinkedIn...\n' })
+    sse({ toolCall: { name: 'publish_linkedin', input: { text: postText } } })
+    const pub = await executeTool('publish_linkedin', { text: postText })
+    sse({ toolResult: { name: 'publish_linkedin', ...pub } })
 
-━━━ CONTEXTO HUTRIT ━━━
+    sse({ text: pub.success ? `\n✅ Publicado en LinkedIn.\n\n---\n${postText}` : `\n❌ Error al publicar: ${pub.error}` })
+    return
+  }
+
+  // ── Publicar en Instagram con imagen ─────────────────────────────────────────
+  if (pipeline === 'image_post_instagram') {
+    sse({ text: 'Generando imagen...\n' })
+    const imgPrompt = await generateContent(`${ctx}\n\nEscribe un prompt en inglés para generar imagen cuadrada para Instagram de Hutrit Europa. Solo el prompt.`, 150)
+    sse({ toolCall: { name: 'generate_image', input: { prompt: imgPrompt, style: 'impacto' } } })
+    const img = await executeTool('generate_image', { prompt: imgPrompt, style: 'impacto' })
+    sse({ toolResult: { name: 'generate_image', ...img } })
+
+    const caption = await generateContent(`${ctx}\n\nEscribe un caption para Instagram de Hutrit Europa con emojis y hashtags. Solo el caption.`)
+    sse({ text: '\nNota: Instagram requiere URL pública de imagen. La imagen fue generada — guárdala y sube manualmente o configura almacenamiento en nube.\n\nCaption listo:\n\n' + caption })
+    return
+  }
+
+  // ── Solo texto Instagram ──────────────────────────────────────────────────────
+  if (pipeline === 'text_post_instagram') {
+    const caption = await generateContent(`${ctx}\n\nEscribe un caption para Instagram de Hutrit Europa con emojis y hashtags. Solo el caption.`)
+    sse({ text: 'Caption listo (Instagram requiere imagen para publicar vía API):\n\n' + caption })
+    return
+  }
+
+  // ── Buscar empresas + outreach ────────────────────────────────────────────────
+  if (pipeline === 'prospect_and_outreach') {
+    const cityMatch = userMessage.match(/en\s+([A-ZÁÉÍÓÚa-záéíóú]+)/i)
+    const ciudad = cityMatch?.[1] || 'Barcelona'
+    const nichoMatch = userMessage.match(/(agencias?|startups?|empresas?|saas|tech|marketing|hr|ecommerce)[^,.]*/i)
+    const nicho = nichoMatch?.[0] || 'empresa tech'
+
+    sse({ text: `Buscando ${nicho} en ${ciudad}...\n` })
+    sse({ toolCall: { name: 'prospect_companies', input: { ciudad, nicho, maxResults: 5 } } })
+    const prospects = await executeTool('prospect_companies', { ciudad, nicho, maxResults: 5 })
+    sse({ toolResult: { name: 'prospect_companies', ...prospects } })
+
+    if (!prospects.success || !prospects.empresas?.length) {
+      sse({ text: `\nNo encontré empresas. Prueba con ciudad y sector más específicos.` })
+      return
+    }
+
+    sse({ text: `\nEncontré ${prospects.empresas.length} empresas. Enviando outreach...\n` })
+    let sent = 0
+    for (const empresa of prospects.empresas) {
+      const email = await generateContent(
+        `Escribe un email de outreach corto (3 párrafos) de Hutrit Europa para ${empresa.nombre} (${empresa.sector || nicho}) en ${ciudad}. Ofrecemos talento remoto LATAM validado. Asunto incluido al inicio como "Asunto: ...". Tono: profesional y directo.`
+      )
+      const lines = email.split('\n')
+      const subjectLine = lines.find(l => l.toLowerCase().startsWith('asunto:')) || ''
+      const subject = subjectLine.replace(/^asunto:\s*/i, '').trim() || `Talento LATAM para ${empresa.nombre}`
+      const body = lines.filter(l => !l.toLowerCase().startsWith('asunto:')).join('\n').trim()
+
+      const to = empresa.web ? `contacto@${empresa.web.replace(/https?:\/\/(www\.)?/, '').split('/')[0]}` : ''
+      if (!to && !process.env.RESEND_TEST_EMAIL) {
+        sse({ text: `⚠️ Sin email para ${empresa.nombre} — saltando.\n` })
+        continue
+      }
+
+      sse({ toolCall: { name: 'send_email', input: { to: to || 'test', subject, body } } })
+      const result = await executeTool('send_email', { to, subject, body })
+      sse({ toolResult: { name: 'send_email', ...result } })
+      if (result.success) sent++
+    }
+    sse({ text: `\n✅ Outreach completado: ${sent}/${prospects.empresas.length} emails enviados.` })
+    return
+  }
+
+  // ── Auditar empresa + email ───────────────────────────────────────────────────
+  if (pipeline === 'audit_and_email') {
+    const emailMatch = userMessage.match(/[\w.-]+@[\w.-]+\.\w+/)
+    const to = emailMatch?.[0] || ''
+    const companyMatch = userMessage.match(/audita\s+(\w[\w\s]+?)(?:\s+y|\s*,|$)/i)
+    const empresa = companyMatch?.[1]?.trim() || 'la empresa'
+
+    sse({ text: `Investigando ${empresa}...\n` })
+    sse({ toolCall: { name: 'search_web', input: { query: `${empresa} empresa España LinkedIn` } } })
+    const search = await executeTool('search_web', { query: `${empresa} empresa España LinkedIn` })
+    sse({ toolResult: { name: 'search_web', ...search } })
+
+    const context = search.success ? `Info encontrada: ${search.summary}` : ''
+    const audit = await generateContent(
+      `Analiza la empresa "${empresa}" para Hutrit Europa.\n${context}\n\nIdentifica: puntos de dolor de talento, roles que necesitan, oportunidad para contratar talent LATAM. Sé específico y conciso.`,
+      600
+    )
+    sse({ text: `\n${audit}\n\n` })
+
+    if (to) {
+      const email = await generateContent(
+        `Escribe un email de outreach de Hutrit Europa para ${empresa} (${to}). Contexto del análisis: ${audit.slice(0, 300)}. Asunto incluido al inicio como "Asunto: ...". 3 párrafos, tono profesional.`
+      )
+      const lines = email.split('\n')
+      const subject = (lines.find(l => l.toLowerCase().startsWith('asunto:')) || '').replace(/^asunto:\s*/i, '').trim() || `Propuesta de talento LATAM para ${empresa}`
+      const body = lines.filter(l => !l.toLowerCase().startsWith('asunto:')).join('\n').trim()
+
+      sse({ toolCall: { name: 'send_email', input: { to, subject, body } } })
+      const result = await executeTool('send_email', { to, subject, body })
+      sse({ toolResult: { name: 'send_email', ...result } })
+      sse({ text: result.success ? `\n✅ Email enviado a ${to}.` : `\n❌ Error enviando email: ${result.error}` })
+    }
+    return
+  }
+
+  // ── Generar solo imagen ───────────────────────────────────────────────────────
+  if (pipeline === 'generate_image_only') {
+    const imgPrompt = await generateContent(`${ctx}\n\nEscribe un prompt en inglés para generar una imagen profesional para redes sociales de Hutrit Europa. Solo el prompt.`, 150)
+    sse({ toolCall: { name: 'generate_image', input: { prompt: imgPrompt, style: 'profesional' } } })
+    const img = await executeTool('generate_image', { prompt: imgPrompt, style: 'profesional' })
+    sse({ toolResult: { name: 'generate_image', ...img } })
+    if (!img.success) sse({ text: `\n❌ Error generando imagen: ${img.error}` })
+    return
+  }
+
+  // ── Calendario de contenido ───────────────────────────────────────────────────
+  if (pipeline === 'generate_calendar') {
+    sse({ text: 'Generando calendario de contenido...\n' })
+    const calendar = await generateContent(
+      `${ctx}\n\nCrea un calendario de contenido detallado para LinkedIn de Hutrit Europa. Incluye: fecha, tema, formato (post/carrusel/video), copy de cada publicación, hashtags. Mínimo 10 entradas. Formato claro con separadores.`,
+      1200
+    )
+    sse({ text: calendar + '\n\n' })
+
+    sse({ toolCall: { name: 'save_to_notion', input: { titulo: 'Calendario de Contenido Hutrit', contenido: calendar, tipo: 'calendario' } } })
+    const saved = await executeTool('save_to_notion', { titulo: 'Calendario de Contenido Hutrit', contenido: calendar, tipo: 'calendario' })
+    sse({ toolResult: { name: 'save_to_notion', ...saved } })
+    sse({ text: saved.success ? '\n✅ Guardado en Notion.' : `\n⚠️ No se pudo guardar en Notion: ${saved.error}` })
+    return
+  }
+
+  // ── Email directo ─────────────────────────────────────────────────────────────
+  if (pipeline === 'send_email_direct') {
+    const emailMatch = userMessage.match(/[\w.-]+@[\w.-]+\.\w+/)
+    const to = emailMatch?.[0] || ''
+
+    const email = await generateContent(`${ctx}\n\nEscribe un email profesional de Hutrit Europa. Asunto al inicio como "Asunto: ...". 3 párrafos concisos.`)
+    const lines = email.split('\n')
+    const subject = (lines.find(l => l.toLowerCase().startsWith('asunto:')) || '').replace(/^asunto:\s*/i, '').trim() || 'Propuesta Hutrit Europa'
+    const body = lines.filter(l => !l.toLowerCase().startsWith('asunto:')).join('\n').trim()
+
+    sse({ toolCall: { name: 'send_email', input: { to, subject, body } } })
+    const result = await executeTool('send_email', { to, subject, body })
+    sse({ toolResult: { name: 'send_email', ...result } })
+    sse({ text: result.success ? `\n✅ Email enviado a ${to}.\n\n---\n**${subject}**\n\n${body}` : `\n❌ Error: ${result.error}` })
+    return
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SYSTEM PROMPT — solo para el modo conversacional (fallback)
+// ═══════════════════════════════════════════════════════════════════════════════
+const SYSTEM = `Eres Hutrit Agent, el asistente de operaciones de Hutrit Europa.
 Hutrit conecta empresas europeas con talento remoto LATAM (tech, marketing, ventas, diseño, datos).
-Mercado objetivo: empresas en España, Europa. No EE.UU.
-Tono: profesional, directo, cercano.
-
-Responde siempre en español.`
+Responde siempre en español. Sé conciso y útil.
+Si el usuario pide ejecutar una acción, dile que lo puede pedir con un comando más directo.`
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HANDLER
@@ -448,68 +624,29 @@ export default async function handler(req, res) {
   const sse = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`)
 
   try {
-    let currentMessages = [...messages]
-    const MAX_ITER = 10
-
-    // Detecta si el último mensaje del usuario contiene una acción clara
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
-    const lastText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content.toLowerCase() : ''
-    const ACTION_WORDS = ['publica', 'envía', 'envia', 'manda', 'busca', 'genera', 'crea', 'guarda', 'exporta', 'audita', 'haz', 'hazme', 'ejecuta', 'outreach', 'linkedin', 'instagram', 'email', 'correo', 'imagen', 'notion', 'pdf', 'prospecto', 'empresa', 'calendario', 'agencia', 'contacta', 'escribe']
-    const isActionRequest = ACTION_WORDS.some(w => lastText.includes(w))
+    const userText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : ''
 
-    for (let iter = 0; iter < MAX_ITER; iter++) {
-      // En peticiones de acción iter 0: forzamos tool_use
-      // Si Claude genera texto antes del tool (tabla de limitaciones), lo suprimimos — el usuario
-      // nunca lo ve. Solo ve las cards de ejecución y la respuesta final post-herramienta.
-      const suppressPreToolText = (iter === 0 && isActionRequest)
-      const toolChoice = suppressPreToolText ? { type: 'any' } : { type: 'auto' }
+    // Intenta ejecutar pipeline directo (no pasa por tool_use de Claude)
+    const pipeline = detectPipeline(userText)
+    if (pipeline) {
+      await runPipeline(pipeline, userText, messages, sse)
+      sse('[DONE]')
+      res.end()
+      return
+    }
 
-      const stream = client.messages.stream({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
-        system: SYSTEM,
-        tools: TOOLS,
-        tool_choice: toolChoice,
-        messages: currentMessages,
-      })
-
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-          // Suprimir texto pre-herramienta en iter 0 de petición de acción
-          // Así la tabla de limitaciones nunca llega al frontend
-          if (!suppressPreToolText) {
-            sse({ text: event.delta.text })
-          }
-        }
+    // Fallback: modo conversacional con Claude (sin tools, solo texto)
+    const stream = client.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system: SYSTEM,
+      messages,
+    })
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+        sse({ text: event.delta.text })
       }
-
-      const finalMsg = await stream.finalMessage()
-
-      // Si no hubo tool_use (no debería pasar con tool_choice 'any', pero por si acaso)
-      // mostrar el texto que teníamos suprimido
-      if (finalMsg.stop_reason !== 'tool_use') {
-        if (suppressPreToolText) {
-          const textBlock = finalMsg.content.find(b => b.type === 'text')
-          if (textBlock?.text) sse({ text: textBlock.text })
-        }
-        break
-      }
-
-      const toolUses = finalMsg.content.filter(b => b.type === 'tool_use')
-      const toolResults = []
-
-      for (const toolUse of toolUses) {
-        sse({ toolCall: { name: toolUse.name, input: toolUse.input } })
-        const result = await executeTool(toolUse.name, toolUse.input)
-        sse({ toolResult: { name: toolUse.name, ...result } })
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(result) })
-      }
-
-      currentMessages = [
-        ...currentMessages,
-        { role: 'assistant', content: finalMsg.content },
-        { role: 'user', content: toolResults },
-      ]
     }
 
     sse('[DONE]')
