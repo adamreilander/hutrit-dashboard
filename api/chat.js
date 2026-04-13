@@ -457,19 +457,12 @@ export default async function handler(req, res) {
     const ACTION_WORDS = ['publica', 'envía', 'envia', 'manda', 'busca', 'genera', 'crea', 'guarda', 'exporta', 'audita', 'haz', 'hazme', 'ejecuta', 'outreach', 'linkedin', 'instagram', 'email', 'correo', 'imagen', 'notion', 'pdf', 'prospecto', 'empresa', 'calendario', 'agencia', 'contacta', 'escribe']
     const isActionRequest = ACTION_WORDS.some(w => lastText.includes(w))
 
-    // PREFILL: si es petición de acción, iniciamos la respuesta del asistente con texto neutro
-    // Esto obliga a Claude a continuar desde ese punto — no puede insertar tablas de limitaciones antes
-    const PREFILL = 'De acuerdo.'
-    if (isActionRequest) {
-      sse({ text: PREFILL + '\n' })
-      currentMessages = [...currentMessages, { role: 'assistant', content: PREFILL }]
-    }
-
     for (let iter = 0; iter < MAX_ITER; iter++) {
-      // Primer iter con acción: forzamos tool_use además del prefill
-      const toolChoice = (iter === 0 && isActionRequest)
-        ? { type: 'any' }
-        : { type: 'auto' }
+      // En peticiones de acción iter 0: forzamos tool_use
+      // Si Claude genera texto antes del tool (tabla de limitaciones), lo suprimimos — el usuario
+      // nunca lo ve. Solo ve las cards de ejecución y la respuesta final post-herramienta.
+      const suppressPreToolText = (iter === 0 && isActionRequest)
+      const toolChoice = suppressPreToolText ? { type: 'any' } : { type: 'auto' }
 
       const stream = client.messages.stream({
         model: 'claude-sonnet-4-6',
@@ -482,20 +475,25 @@ export default async function handler(req, res) {
 
       for await (const event of stream) {
         if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-          sse({ text: event.delta.text })
+          // Suprimir texto pre-herramienta en iter 0 de petición de acción
+          // Así la tabla de limitaciones nunca llega al frontend
+          if (!suppressPreToolText) {
+            sse({ text: event.delta.text })
+          }
         }
       }
 
       const finalMsg = await stream.finalMessage()
 
-      // Si es iter 0 con prefill, necesitamos reconstruir el historial fusionando prefill + respuesta
-      if (iter === 0 && isActionRequest) {
-        // Quitamos el prefill que añadimos al inicio — lo reemplazamos con el mensaje completo
-        currentMessages = currentMessages.slice(0, -1)
-        // Continuamos normalmente desde aquí
+      // Si no hubo tool_use (no debería pasar con tool_choice 'any', pero por si acaso)
+      // mostrar el texto que teníamos suprimido
+      if (finalMsg.stop_reason !== 'tool_use') {
+        if (suppressPreToolText) {
+          const textBlock = finalMsg.content.find(b => b.type === 'text')
+          if (textBlock?.text) sse({ text: textBlock.text })
+        }
+        break
       }
-
-      if (finalMsg.stop_reason !== 'tool_use') break
 
       const toolUses = finalMsg.content.filter(b => b.type === 'tool_use')
       const toolResults = []
