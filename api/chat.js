@@ -445,14 +445,21 @@ export default async function handler(req, res) {
     const MAX_ITER = 10
 
     // Detecta si el último mensaje del usuario contiene una acción clara
-    // Si es así, forzamos tool_use para evitar que Claude genere texto de limitaciones
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
     const lastText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content.toLowerCase() : ''
-    const ACTION_WORDS = ['publica', 'publ', 'envía', 'envia', 'manda', 'busca', 'genera', 'crea', 'guarda', 'exporta', 'audita', 'haz', 'hazme', 'ejecuta', 'outreach', 'linkedin', 'instagram', 'email', 'correo', 'imagen', 'notion', 'pdf', 'prospecto', 'empresa']
+    const ACTION_WORDS = ['publica', 'envía', 'envia', 'manda', 'busca', 'genera', 'crea', 'guarda', 'exporta', 'audita', 'haz', 'hazme', 'ejecuta', 'outreach', 'linkedin', 'instagram', 'email', 'correo', 'imagen', 'notion', 'pdf', 'prospecto', 'empresa', 'calendario', 'agencia', 'contacta', 'escribe']
     const isActionRequest = ACTION_WORDS.some(w => lastText.includes(w))
 
+    // PREFILL: si es petición de acción, iniciamos la respuesta del asistente con texto neutro
+    // Esto obliga a Claude a continuar desde ese punto — no puede insertar tablas de limitaciones antes
+    const PREFILL = 'De acuerdo.'
+    if (isActionRequest) {
+      sse({ text: PREFILL + '\n' })
+      currentMessages = [...currentMessages, { role: 'assistant', content: PREFILL }]
+    }
+
     for (let iter = 0; iter < MAX_ITER; iter++) {
-      // En el primer iter con petición de acción, forzamos tool_use para prevenir tablas de limitaciones
+      // Primer iter con acción: forzamos tool_use además del prefill
       const toolChoice = (iter === 0 && isActionRequest)
         ? { type: 'any' }
         : { type: 'auto' }
@@ -473,6 +480,14 @@ export default async function handler(req, res) {
       }
 
       const finalMsg = await stream.finalMessage()
+
+      // Si es iter 0 con prefill, necesitamos reconstruir el historial fusionando prefill + respuesta
+      if (iter === 0 && isActionRequest) {
+        // Quitamos el prefill que añadimos al inicio — lo reemplazamos con el mensaje completo
+        currentMessages = currentMessages.slice(0, -1)
+        // Continuamos normalmente desde aquí
+      }
+
       if (finalMsg.stop_reason !== 'tool_use') break
 
       const toolUses = finalMsg.content.filter(b => b.type === 'tool_use')
