@@ -1,23 +1,29 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Zap, Trash2, Mail, CheckCircle, XCircle, Loader, Search, Calendar, FileText, Link } from 'lucide-react'
+import { Send, Bot, User, Zap, Trash2, Mail, CheckCircle, XCircle, Loader, Search, Calendar, FileText, Link, Globe, Image, MapPin, Users } from 'lucide-react'
 
 const STARTERS = [
-  'Audita TechVenture BCN (SaaS) y mándales outreach a ceo@techventure.com',
-  'Genera un calendario de contenido de 2 semanas para empresas europeas (B2B)',
-  'Haz outreach a estas 3 empresas: Factorial (HR), Typeform (SaaS), Holded (fintech)',
-  'Publica en LinkedIn un post sobre por qué el talento LATAM es clave en 2025',
-  'Audita el sector ecommerce en España y crea contenido basado en los puntos de dolor',
+  'Busca 6 agencias de marketing en Barcelona y mándales outreach a todas',
+  'Audita Factorial (HR software, Barcelona) y mándales email a ceo@factorial.hr',
+  'Genera calendario de 2 semanas B2B, publícalo en LinkedIn y guárdalo en Notion',
+  'Genera una imagen impacto para un post sobre talento LATAM y publícala en LinkedIn',
+  'Haz outreach a Typeform, Holded y Factorial con emails personalizados para cada uno',
 ]
 
 const STORAGE_KEY = 'hutrit_chat_history'
 
 const TOOL_LABELS = {
-  send_email:       { icon: Mail,     label: 'Enviando email',              doneLabel: 'Email enviado' },
-  publish_linkedin: { icon: Link,     label: 'Publicando en LinkedIn',      doneLabel: 'Publicado en LinkedIn' },
-  audit_company:    { icon: Search,   label: 'Auditando empresa',           doneLabel: 'Auditoría completada' },
-  send_outreach:    { icon: Mail,     label: 'Generando y enviando outreach', doneLabel: 'Outreach enviado' },
-  generate_calendar:{ icon: Calendar, label: 'Generando calendario',        doneLabel: 'Calendario generado' },
-  save_to_notion:   { icon: FileText, label: 'Guardando en Notion',         doneLabel: 'Guardado en Notion' },
+  send_email:          { icon: Mail,     label: 'Enviando email',                 doneLabel: 'Email enviado' },
+  send_outreach:       { icon: Mail,     label: 'Generando y enviando outreach',  doneLabel: 'Outreach enviado' },
+  bulk_outreach:       { icon: Users,    label: 'Enviando outreach masivo',       doneLabel: 'Outreach masivo enviado' },
+  publish_linkedin:    { icon: Link,     label: 'Publicando en LinkedIn',         doneLabel: 'Publicado en LinkedIn' },
+  publish_instagram:   { icon: Image,    label: 'Publicando en Instagram',        doneLabel: 'Publicado en Instagram' },
+  audit_company:       { icon: Search,   label: 'Auditando empresa',              doneLabel: 'Auditoría completada' },
+  search_web:          { icon: Globe,    label: 'Buscando en internet',           doneLabel: 'Búsqueda completada' },
+  scrape_url:          { icon: Globe,    label: 'Leyendo URL',                    doneLabel: 'URL leída' },
+  prospect_companies:  { icon: MapPin,   label: 'Buscando empresas',              doneLabel: 'Empresas encontradas' },
+  generate_calendar:   { icon: Calendar, label: 'Generando calendario',           doneLabel: 'Calendario generado' },
+  generate_image:      { icon: Image,    label: 'Generando imagen con IA',        doneLabel: 'Imagen generada' },
+  save_to_notion:      { icon: FileText, label: 'Guardando en Notion',            doneLabel: 'Guardado en Notion' },
 }
 
 function ToolCard({ msg }) {
@@ -28,8 +34,10 @@ function ToolCard({ msg }) {
   const txtColor = msg.status === 'running' ? '#92400E' : msg.success ? '#065F46'  : '#9F1239'
   const bdColor  = msg.status === 'running' ? '#FCD34D' : msg.success ? '#6EE7B7'  : '#FCA5A5'
 
+  const hasImage = msg.toolName === 'generate_image' && msg.status === 'done' && msg.success && msg.imageBase64
+
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '7px 14px', borderRadius: 20,
@@ -38,12 +46,17 @@ function ToolCard({ msg }) {
       }}>
         {msg.status === 'running'
           ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} />
-          : msg.success
-            ? <CheckCircle size={13} />
-            : <XCircle size={13} />}
+          : msg.success ? <CheckCircle size={13} /> : <XCircle size={13} />}
         <Icon size={13} />
         {msg.status === 'running' ? cfg.label + '...' : msg.result || (msg.success ? cfg.doneLabel : 'Error')}
       </div>
+      {hasImage && (
+        <img
+          src={`data:${msg.mimeType || 'image/png'};base64,${msg.imageBase64}`}
+          alt="Imagen generada"
+          style={{ maxWidth: 300, borderRadius: 12, border: '1px solid var(--h-border)', boxShadow: 'var(--shadow-sm)' }}
+        />
+      )}
     </div>
   )
 }
@@ -129,7 +142,6 @@ export default function Chat() {
             }
 
             if (event.toolResult) {
-              // Actualizar la última tool card con el resultado
               setMessages(prev => {
                 const updated = [...prev]
                 for (let i = updated.length - 1; i >= 0; i--) {
@@ -139,6 +151,9 @@ export default function Chat() {
                       status: 'done',
                       success: event.toolResult.success,
                       result: event.toolResult.message || event.toolResult.error,
+                      // pass through image data if present
+                      imageBase64: event.toolResult.imageBase64 || null,
+                      mimeType: event.toolResult.mimeType || null,
                     }
                     break
                   }
@@ -191,8 +206,8 @@ export default function Chat() {
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Agente Hutrit</div>
             <div style={{ fontSize: 11, color: 'var(--h-muted)' }}>
-              email · linkedin · auditoría · outreach · calendario · notion
-              {messages.filter(m => m.role === 'user').length > 0 && ` · ${messages.filter(m => m.role === 'user').length} mensajes`}
+              12 herramientas · email · linkedin · instagram · búsqueda · prospección · imágenes · notion
+              {messages.filter(m => m.role === 'user').length > 0 && ` · ${messages.filter(m => m.role === 'user').length} msgs`}
             </div>
           </div>
         </div>
