@@ -5,67 +5,27 @@ export const maxDuration = 60
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// HERRAMIENTAS — 12 capacidades reales conectadas al agente
+// HERRAMIENTAS — solo IO externo, sin llamadas internas a Claude
+// Claude genera todo el contenido en su respuesta de texto.
+// Las herramientas solo ejecutan acciones con APIs externas.
 // ═══════════════════════════════════════════════════════════════════════════════
 const TOOLS = [
-  // ── COMUNICACIÓN ──────────────────────────────────────────────────────────
   {
     name: 'send_email',
-    description: 'Envía un email real a cualquier dirección. Úsalo cuando el usuario pida enviar un email.',
+    description: 'Envía un email real. Úsalo después de generar el contenido del email en tu respuesta.',
     input_schema: {
       type: 'object',
       properties: {
         to:      { type: 'string', description: 'Email del destinatario' },
-        subject: { type: 'string', description: 'Asunto' },
-        body:    { type: 'string', description: 'Cuerpo completo en texto plano' },
+        subject: { type: 'string', description: 'Asunto del email' },
+        body:    { type: 'string', description: 'Cuerpo completo del email en texto plano' },
       },
       required: ['to', 'subject', 'body'],
     },
   },
   {
-    name: 'send_outreach',
-    description: 'Pipeline completo de outreach: audita la empresa, genera email 100% personalizado y lo envía. Úsalo cuando el usuario pida hacer outreach a una empresa.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        empresa:    { type: 'string' },
-        sector:     { type: 'string' },
-        email_to:   { type: 'string', description: 'Email del destinatario' },
-        contacto:   { type: 'string', description: 'Nombre del contacto (opcional)' },
-        audit_data: { type: 'string', description: 'JSON de auditoría previa (opcional)' },
-      },
-      required: ['empresa', 'sector', 'email_to'],
-    },
-  },
-  {
-    name: 'bulk_outreach',
-    description: 'Envía outreach personalizado a múltiples empresas de una vez. Úsalo cuando el usuario dé una lista de empresas.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        empresas: {
-          type: 'array',
-          description: 'Lista de empresas a contactar',
-          items: {
-            type: 'object',
-            properties: {
-              empresa:  { type: 'string' },
-              sector:   { type: 'string' },
-              email_to: { type: 'string' },
-              contacto: { type: 'string' },
-            },
-            required: ['empresa', 'sector', 'email_to'],
-          },
-        },
-      },
-      required: ['empresas'],
-    },
-  },
-
-  // ── REDES SOCIALES ─────────────────────────────────────────────────────────
-  {
     name: 'publish_linkedin',
-    description: 'Publica un post en el LinkedIn de Hutrit. Úsalo cuando el usuario pida publicar en LinkedIn.',
+    description: 'Publica un post en el LinkedIn de Hutrit. Úsalo después de redactar el post en tu respuesta.',
     input_schema: {
       type: 'object',
       properties: {
@@ -76,34 +36,19 @@ const TOOLS = [
   },
   {
     name: 'publish_instagram',
-    description: 'Publica una imagen con caption en el Instagram de Hutrit. Requiere una URL pública de imagen. Úsalo después de generate_image.',
+    description: 'Publica en Instagram de Hutrit. Requiere URL pública de imagen (usa generate_image primero).',
     input_schema: {
       type: 'object',
       properties: {
-        caption:   { type: 'string', description: 'Caption del post con hashtags' },
-        image_url: { type: 'string', description: 'URL pública de la imagen a publicar' },
+        caption:   { type: 'string', description: 'Caption con hashtags' },
+        image_url: { type: 'string', description: 'URL pública de la imagen' },
       },
       required: ['caption', 'image_url'],
     },
   },
-
-  // ── INVESTIGACIÓN ──────────────────────────────────────────────────────────
-  {
-    name: 'audit_company',
-    description: 'Audita una empresa: detecta puntos de dolor, talento que necesitan y ángulo de outreach. Úsalo antes de generar contenido o enviar outreach.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        empresa: { type: 'string' },
-        sector:  { type: 'string' },
-        web:     { type: 'string', description: 'URL de la web (opcional)' },
-      },
-      required: ['empresa', 'sector'],
-    },
-  },
   {
     name: 'search_web',
-    description: 'Busca información real en internet sobre cualquier empresa, sector o tema. Úsalo para investigar antes de auditar o prospectar.',
+    description: 'Busca información real en internet. Úsalo para investigar empresas, sectores o noticias antes de analizar.',
     input_schema: {
       type: 'object',
       properties: {
@@ -115,7 +60,7 @@ const TOOLS = [
   },
   {
     name: 'scrape_url',
-    description: 'Lee el contenido de cualquier URL — web de empresa, LinkedIn, artículo, etc. Úsalo para obtener información real antes de analizar.',
+    description: 'Lee el contenido de una URL. Úsalo para leer la web de una empresa antes de analizarla.',
     input_schema: {
       type: 'object',
       properties: {
@@ -126,53 +71,36 @@ const TOOLS = [
   },
   {
     name: 'prospect_companies',
-    description: 'Encuentra empresas reales para prospectar en una ciudad y sector usando Google. Devuelve lista con nombre, web y teléfono.',
+    description: 'Encuentra empresas reales por ciudad y sector usando Google Maps. Devuelve nombre, web y teléfono.',
     input_schema: {
       type: 'object',
       properties: {
-        ciudad:     { type: 'string', description: 'Ciudad donde buscar, ej: Barcelona, Madrid' },
-        nicho:      { type: 'string', description: 'Sector o tipo de empresa, ej: agencia de marketing, startup SaaS' },
-        maxResults: { type: 'number', description: 'Número de resultados (default 6)' },
+        ciudad:     { type: 'string', description: 'Ciudad donde buscar, ej: Valencia, Barcelona, Madrid' },
+        nicho:      { type: 'string', description: 'Tipo de empresa, ej: empresa de ventas, startup SaaS, agencia de marketing' },
+        maxResults: { type: 'number', description: 'Número de resultados (default 5, max 8)' },
       },
       required: ['ciudad', 'nicho'],
     },
   },
-
-  // ── CONTENIDO Y CREATIVOS ──────────────────────────────────────────────────
-  {
-    name: 'generate_calendar',
-    description: 'Genera un calendario de contenido completo con posts listos para publicar en LinkedIn e Instagram.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        sector:  { type: 'string' },
-        semanas: { type: 'number', description: 'Semanas de contenido (1-4)' },
-        foco:    { type: 'string', description: 'b2b (empresas europeas) | b2c (talento LATAM) | mixto' },
-      },
-      required: ['sector', 'semanas', 'foco'],
-    },
-  },
   {
     name: 'generate_image',
-    description: 'Genera una imagen profesional para LinkedIn o Instagram usando IA (Gemini). Úsalo cuando el usuario pida una imagen, creativo o visual.',
+    description: 'Genera una imagen profesional con IA (Gemini) para LinkedIn o Instagram.',
     input_schema: {
       type: 'object',
       properties: {
-        prompt: { type: 'string', description: 'Descripción del concepto visual a generar' },
+        prompt: { type: 'string', description: 'Descripción del concepto visual' },
         style:  { type: 'string', description: 'profesional | minimalista | impacto | lifestyle' },
       },
       required: ['prompt'],
     },
   },
-
-  // ── ALMACENAMIENTO ─────────────────────────────────────────────────────────
   {
     name: 'save_to_notion',
-    description: 'Guarda cualquier contenido como página en Notion: auditorías, calendarios, copys, estrategias, listas de prospectos.',
+    description: 'Guarda contenido como página en Notion. Úsalo para exportar auditorías, calendarios, listas de empresas o cualquier entregable.',
     input_schema: {
       type: 'object',
       properties: {
-        titulo:    { type: 'string' },
+        titulo:    { type: 'string', description: 'Título de la página' },
         contenido: { type: 'string', description: 'Contenido completo a guardar' },
         tipo:      { type: 'string', description: 'auditoria | calendario | contenido | outreach | prospectos | estrategia' },
       },
@@ -182,12 +110,11 @@ const TOOLS = [
 ]
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LÓGICA DE EJECUCIÓN
+// EJECUCIÓN DE HERRAMIENTAS — solo IO, sin Claude interno
 // ═══════════════════════════════════════════════════════════════════════════════
 async function executeTool(name, input) {
   try {
 
-    // ── send_email ────────────────────────────────────────────────────────────
     if (name === 'send_email') {
       const apiKey = process.env.RESEND_API_KEY
       if (!apiKey) return { success: false, error: 'RESEND_API_KEY no configurada en Vercel' }
@@ -204,7 +131,6 @@ async function executeTool(name, input) {
       return { success: true, message: `Email enviado a ${to[0]}` }
     }
 
-    // ── publish_linkedin ──────────────────────────────────────────────────────
     if (name === 'publish_linkedin') {
       const url = process.env.MAKE_WEBHOOK_URL
       if (!url) return { success: false, error: 'MAKE_WEBHOOK_URL no configurada en Vercel' }
@@ -217,123 +143,37 @@ async function executeTool(name, input) {
       return { success: true, message: 'Post publicado en LinkedIn' }
     }
 
-    // ── publish_instagram ─────────────────────────────────────────────────────
     if (name === 'publish_instagram') {
       const userId = process.env.INSTAGRAM_USER_ID
       const token  = process.env.INSTAGRAM_ACCESS_TOKEN
       if (!userId || !token) return { success: false, error: 'Credenciales de Instagram no configuradas' }
-      if (!input.image_url) return { success: false, error: 'Se necesita image_url. Primero genera una imagen y súbela a una URL pública.' }
+      if (!input.image_url) return { success: false, error: 'Se necesita image_url pública' }
 
-      const igPost = async (endpoint, params) => {
+      const post = async (ep, params) => {
         const body = new URLSearchParams({ ...params, access_token: token })
-        const r = await fetch(`https://graph.facebook.com/v19.0${endpoint}`, {
+        return fetch(`https://graph.facebook.com/v19.0${ep}`, {
           method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString(),
-        })
-        return r.json()
+        }).then(r => r.json())
       }
 
-      const container = await igPost(`/${userId}/media`, { image_url: input.image_url, caption: input.caption })
-      if (!container?.id) return { success: false, error: container?.error?.message || 'Error creando container de Instagram' }
+      const container = await post(`/${userId}/media`, { image_url: input.image_url, caption: input.caption })
+      if (!container?.id) return { success: false, error: container?.error?.message || 'Error creando container' }
 
-      let statusCode = null
+      let status = null
       for (let i = 0; i < 10; i++) {
-        await new Promise(r => setTimeout(r, 5000))
+        await new Promise(r => setTimeout(r, 4000))
         const s = await fetch(`https://graph.facebook.com/v19.0/${container.id}?fields=status_code&access_token=${token}`).then(r => r.json())
-        statusCode = s?.status_code
-        if (statusCode === 'FINISHED') break
-        if (['ERROR', 'EXPIRED'].includes(statusCode)) return { success: false, error: `Instagram error: ${statusCode}` }
+        status = s?.status_code
+        if (status === 'FINISHED') break
+        if (['ERROR', 'EXPIRED'].includes(status)) return { success: false, error: `Instagram error: ${status}` }
       }
-      if (statusCode !== 'FINISHED') return { success: false, error: 'Timeout: Instagram tardó demasiado en procesar la imagen' }
+      if (status !== 'FINISHED') return { success: false, error: 'Timeout procesando imagen en Instagram' }
 
-      const pub = await igPost(`/${userId}/media_publish`, { creation_id: container.id })
-      if (!pub?.id) return { success: false, error: pub?.error?.message || 'Error publicando en Instagram' }
-      return { success: true, message: `Post publicado en Instagram (ID: ${pub.id})`, postId: pub.id }
+      const pub = await post(`/${userId}/media_publish`, { creation_id: container.id })
+      if (!pub?.id) return { success: false, error: pub?.error?.message || 'Error publicando' }
+      return { success: true, message: `Publicado en Instagram (ID: ${pub.id})` }
     }
 
-    // ── audit_company ─────────────────────────────────────────────────────────
-    if (name === 'audit_company') {
-      const msg = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 700,
-        messages: [{
-          role: 'user',
-          content: `Audita esta empresa para Hutrit Europa (conectamos empresas europeas con talento LATAM).
-
-EMPRESA: ${input.empresa}
-SECTOR: ${input.sector}
-${input.web ? `WEB: ${input.web}` : ''}
-
-Devuelve SOLO JSON:
-{"puntos_dolor":[{"area":"AREA","problema":"DESCRIPCION","urgencia":"alta|media|baja"}],"talento_buscado":["ROL 1","ROL 2"],"presencia_digital":"RESUMEN","oportunidad_hutrit":"PROPUESTA EN 2 FRASES","angulo_outreach":"HOOK ESPECIFICO PARA EMAIL","hook_linkedin":"HOOK PARA POST LINKEDIN"}`,
-        }],
-      })
-      const text = msg.content[0]?.text || ''
-      try {
-        const m = text.match(/\{[\s\S]*\}/)
-        const audit = m ? JSON.parse(m[0]) : null
-        if (audit) return { success: true, audit, empresa: input.empresa, sector: input.sector, message: `Auditoría de ${input.empresa} completada` }
-        return { success: false, error: 'No se pudo generar la auditoría' }
-      } catch { return { success: false, error: 'Error parseando auditoría' } }
-    }
-
-    // ── send_outreach (audit + generate email + send) ─────────────────────────
-    if (name === 'send_outreach') {
-      const apiKey = process.env.RESEND_API_KEY
-      if (!apiKey) return { success: false, error: 'RESEND_API_KEY no configurada en Vercel' }
-
-      let auditData = null
-      if (input.audit_data) { try { auditData = JSON.parse(input.audit_data) } catch {} }
-      if (!auditData) {
-        const r = await executeTool('audit_company', { empresa: input.empresa, sector: input.sector })
-        if (r.success) auditData = r.audit
-      }
-
-      const emailMsg = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 500,
-        messages: [{
-          role: 'user',
-          content: `Escribe email de outreach en frío de Hutrit Europa para ${input.empresa} (${input.sector}).
-${auditData ? `Puntos de dolor: ${auditData.puntos_dolor?.map(p => p.problema).join(', ')}
-Talento que necesitan: ${auditData.talento_buscado?.join(', ')}
-Ángulo: ${auditData.angulo_outreach}` : ''}
-${input.contacto ? `Contacto: ${input.contacto}` : ''}
-
-Reglas: tono directo y profesional, 4-5 líneas máximo, referencia específica a ${input.empresa}, CTA de 15 min, firma Adam | Hutrit | hutrit.com.
-Responde SOLO JSON: {"subject":"...","body":"..."}`,
-        }],
-      })
-      const emailText = emailMsg.content[0]?.text || ''
-      let emailData = null
-      try { const m = emailText.match(/\{[\s\S]*\}/); if (m) emailData = JSON.parse(m[0]) } catch {}
-      if (!emailData) return { success: false, error: 'No se pudo generar el email' }
-
-      const testEmail = process.env.RESEND_TEST_EMAIL
-      const to = testEmail ? [testEmail] : [input.email_to]
-      const subject = testEmail ? `[TEST → ${input.email_to}] ${emailData.subject}` : emailData.subject
-
-      const sendResp = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: 'onboarding@resend.dev', to, subject, html: emailData.body.replace(/\n/g, '<br>') }),
-      })
-      const sendData = await sendResp.json()
-      if (!sendResp.ok) return { success: false, error: sendData.message, subject: emailData.subject }
-      return { success: true, message: `Outreach enviado a ${to[0]}`, subject: emailData.subject, preview: emailData.body.slice(0, 120) + '...' }
-    }
-
-    // ── bulk_outreach ─────────────────────────────────────────────────────────
-    if (name === 'bulk_outreach') {
-      const results = []
-      for (const emp of (input.empresas || [])) {
-        const r = await executeTool('send_outreach', emp)
-        results.push({ empresa: emp.empresa, ...r })
-      }
-      const sent = results.filter(r => r.success).length
-      return { success: true, results, message: `Outreach enviado a ${sent}/${results.length} empresas` }
-    }
-
-    // ── search_web ────────────────────────────────────────────────────────────
     if (name === 'search_web') {
       const apiKey = process.env.APIFY_API_KEY
       if (!apiKey) return { success: false, error: 'APIFY_API_KEY no configurada en Vercel' }
@@ -343,7 +183,7 @@ Responde SOLO JSON: {"subject":"...","body":"..."}`,
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ queries: input.query, maxPagesPerQuery: 1, resultsPerPage: input.maxResults || 5, countryCode: 'es', languageCode: 'es' }),
-          signal: AbortSignal.timeout(25000),
+          signal: AbortSignal.timeout(20000),
         }
       )
       if (!resp.ok) return { success: false, error: 'Error en búsqueda web' }
@@ -356,17 +196,16 @@ Responde SOLO JSON: {"subject":"...","body":"..."}`,
         }
         if (results.length >= (input.maxResults || 5)) break
       }
-      const summary = results.map(r => `- ${r.title}: ${r.description} (${r.url})`).join('\n')
-      return { success: true, results, summary, message: `${results.length} resultados para "${input.query}"` }
+      const summary = results.map(r => `${r.title}: ${r.description} (${r.url})`).join('\n')
+      return { success: true, results, summary, message: `${results.length} resultados encontrados` }
     }
 
-    // ── scrape_url ────────────────────────────────────────────────────────────
     if (name === 'scrape_url') {
       const resp = await fetch(input.url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HutritAgent/1.0)' },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(8000),
       })
-      if (!resp.ok) return { success: false, error: `Error ${resp.status} al acceder a ${input.url}` }
+      if (!resp.ok) return { success: false, error: `Error ${resp.status} accediendo a ${input.url}` }
       const html = await resp.text()
       const text = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -378,16 +217,18 @@ Responde SOLO JSON: {"subject":"...","body":"..."}`,
       return { success: true, content: text, url: input.url, message: `Contenido leído de ${input.url}` }
     }
 
-    // ── prospect_companies ────────────────────────────────────────────────────
     if (name === 'prospect_companies') {
       const apiKey = process.env.GOOGLE_MAPS_API_KEY
       if (!apiKey) return { success: false, error: 'GOOGLE_MAPS_API_KEY no configurada en Vercel' }
+      const max = Math.min(input.maxResults || 5, 8)
       const query = `${input.nicho} en ${input.ciudad}, España`
       const resp = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`)
       const data = await resp.json()
       if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') return { success: false, error: `Google Places: ${data.status}` }
+
+      // Obtener detalles en paralelo para ser más rápido
       const empresas = await Promise.all(
-        (data.results || []).slice(0, input.maxResults || 6).map(async (p) => {
+        (data.results || []).slice(0, max).map(async (p) => {
           let web = '', telefono = ''
           if (p.place_id) {
             try {
@@ -395,74 +236,45 @@ Responde SOLO JSON: {"subject":"...","body":"..."}`,
               web = det.result?.website || ''; telefono = det.result?.formatted_phone_number || ''
             } catch {}
           }
-          return { nombre: p.name, ciudad: input.ciudad, sector: input.nicho, rating: p.rating || 0, web, telefono }
+          return { nombre: p.nombre || p.name, ciudad: input.ciudad, sector: input.nicho, rating: p.rating || 0, web, telefono }
         })
       )
       return { success: true, empresas, message: `${empresas.length} empresas encontradas en ${input.ciudad}` }
     }
 
-    // ── generate_calendar ─────────────────────────────────────────────────────
-    if (name === 'generate_calendar') {
-      const msg = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: `Genera calendario de contenido de ${input.semanas} semana(s) para Hutrit.
-Sector: ${input.sector} | Foco: ${input.foco === 'b2b' ? 'empresas europeas' : input.foco === 'b2c' ? 'talento LATAM' : 'ambos'}
-
-SOLO JSON:
-{"semanas":[{"semana":1,"posts":[{"dia":"Lunes","canal":"LinkedIn","tipo":"educativo|caso_exito|opinion|dato","titulo":"TITULO","copy":"COPY COMPLETO CON HASHTAGS","cta":"CTA"}]}],"resumen":"ESTRATEGIA EN 2 FRASES"}`,
-        }],
-      })
-      const text = msg.content[0]?.text || ''
-      try {
-        const m = text.match(/\{[\s\S]*\}/)
-        const calendar = m ? JSON.parse(m[0]) : null
-        if (calendar) {
-          const total = calendar.semanas?.reduce((a, s) => a + (s.posts?.length || 0), 0) || 0
-          return { success: true, calendar, message: `Calendario generado: ${total} posts en ${input.semanas} semana(s)` }
-        }
-        return { success: false, error: 'No se pudo generar el calendario' }
-      } catch { return { success: false, error: 'Error parseando calendario' } }
-    }
-
-    // ── generate_image ────────────────────────────────────────────────────────
     if (name === 'generate_image') {
       const apiKey = process.env.GEMINI_API_KEY
       if (!apiKey) return { success: false, error: 'GEMINI_API_KEY no configurada en Vercel' }
       const STYLES = {
-        profesional: 'Corporate professional, clean, Hutrit brand teal (#0D5C54), modern',
-        minimalista: 'Minimalist, lots of white space, teal accent, geometric, clean',
-        impacto:     'Bold, dark background, bright teal and white, high contrast, tech startup',
-        lifestyle:   'Warm lifestyle, diverse Latin American professionals, collaborative workspace',
+        profesional: 'Corporate professional, clean background, Hutrit brand teal (#0D5C54), modern typography',
+        minimalista: 'Minimalist, lots of white space, teal accent (#0D9488), geometric, clean',
+        impacto:     'Bold, dark background, bright teal and white, high contrast, tech startup feel',
+        lifestyle:   'Warm lifestyle photography, diverse Latin American professionals, collaborative workspace, authentic',
       }
       const style = STYLES[input.style] || STYLES.profesional
-      const fullPrompt = `Social media image for Hutrit Europa talent platform. ${input.prompt}. Style: ${style}. Square 1:1, professional, no text overlays.`
+      const fullPrompt = `Social media image for Hutrit Europa talent platform. ${input.prompt}. Style: ${style}. Square 1:1 format, professional, no text overlays.`
 
-      // Try Imagen 3 first
+      // Imagen 3 primero
       const r1 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instances: [{ prompt: fullPrompt }], parameters: { sampleCount: 1, aspectRatio: '1:1' } }),
       })
       const d1 = await r1.json()
-      const img1 = d1.predictions?.[0]?.bytesBase64Encoded
-      if (img1) return { success: true, imageBase64: img1, mimeType: 'image/png', message: 'Imagen generada con Imagen 3' }
+      if (d1.predictions?.[0]?.bytesBase64Encoded) {
+        return { success: true, imageBase64: d1.predictions[0].bytesBase64Encoded, mimeType: 'image/png', message: 'Imagen generada' }
+      }
 
       // Fallback Gemini Flash
       const r2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }], generationConfig: { responseModalities: ['IMAGE', 'TEXT'] } }),
       })
       const d2 = await r2.json()
       const imgPart = d2.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.mimeType?.startsWith('image/'))
-      if (imgPart) return { success: true, imageBase64: imgPart.inlineData.data, mimeType: imgPart.inlineData.mimeType, message: 'Imagen generada con Gemini' }
+      if (imgPart) return { success: true, imageBase64: imgPart.inlineData.data, mimeType: imgPart.inlineData.mimeType, message: 'Imagen generada' }
       return { success: false, error: 'No se pudo generar la imagen' }
     }
 
-    // ── save_to_notion ────────────────────────────────────────────────────────
     if (name === 'save_to_notion') {
       const token = process.env.NOTION_TOKEN
       if (!token) return { success: false, error: 'NOTION_TOKEN no configurado en Vercel' }
@@ -474,10 +286,9 @@ SOLO JSON:
       }).then(r => r.json())
 
       const parent = search.results?.[0]
-      if (!parent) return { success: false, error: 'No hay páginas en Notion. Comparte una página con la integración.' }
+      if (!parent) return { success: false, error: 'No hay páginas compartidas en Notion. Comparte una página con la integración.' }
 
-      const lines = input.contenido.split('\n').filter(l => l.trim())
-      const blocks = lines.slice(0, 100).map(line => ({
+      const blocks = input.contenido.split('\n').filter(l => l.trim()).slice(0, 100).map(line => ({
         object: 'block', type: 'paragraph',
         paragraph: { rich_text: [{ type: 'text', text: { content: line.slice(0, 2000) } }] },
       }))
@@ -511,28 +322,34 @@ CONTEXTO:
 - B2C (Hutrit Club): profesionales LATAM buscan trabajo en Europa
 - Propuesta: talento validado, inglés B2+, zona horaria compatible, coste optimizado vs Europa
 
-HERRAMIENTAS DISPONIBLES:
-- send_email → envía emails reales
-- send_outreach → audita empresa + genera email personalizado + lo envía (pipeline completo)
-- bulk_outreach → outreach a múltiples empresas de una vez
-- publish_linkedin → publica en LinkedIn de Hutrit
-- publish_instagram → publica en Instagram de Hutrit (requiere image_url pública)
-- audit_company → analiza empresa: puntos de dolor, talento, ángulo de outreach
-- search_web → busca información real en internet (usa APIFY)
-- scrape_url → lee el contenido de cualquier URL
-- prospect_companies → encuentra empresas reales por ciudad y sector (Google Maps)
-- generate_calendar → genera calendario de contenido completo con copys
-- generate_image → genera imagen profesional con IA (Gemini) para posts
-- save_to_notion → guarda cualquier contenido como página en Notion
+HERRAMIENTAS (solo IO externo — rápidas):
+- send_email → envía email real vía Resend
+- publish_linkedin → publica en LinkedIn de Hutrit vía Make.com
+- publish_instagram → publica en Instagram (necesita image_url pública)
+- search_web → busca en Google vía Apify
+- scrape_url → lee contenido de cualquier URL
+- prospect_companies → encuentra empresas reales por ciudad/sector (Google Maps)
+- generate_image → genera imagen con Gemini IA
+- save_to_notion → guarda contenido en Notion
 
-COMPORTAMIENTO:
-1. Ejecuta acciones DIRECTAMENTE sin pedir permiso. Si el usuario pide hacer algo, hazlo.
-2. Para pipelines (prospectar → auditar → outreach → publicar → guardar), ejecuta TODOS los pasos.
-3. Si el usuario da una lista de empresas, procésalas TODAS.
-4. Usa search_web y scrape_url para obtener datos reales antes de auditar si no tienes info.
-5. Solo pide información estrictamente necesaria que no puedas inferir o buscar.
-6. Después de ejecutar, haz un resumen claro de lo que ejecutaste y los resultados.
-7. Responde SIEMPRE en español. Máximo 300 palabras de texto — el trabajo lo hacen las herramientas.`
+CÓMO TRABAJAR:
+TÚ eres el cerebro. Tú generas todo el contenido (auditorías, emails, posts, calendarios, análisis) en tu respuesta de texto. Las herramientas solo ejecutan IO.
+
+FLUJO CORRECTO para pipelines complejos:
+1. Usa herramientas de investigación si las necesitas (search_web, scrape_url, prospect_companies)
+2. ANALIZA y GENERA el contenido en tu respuesta de texto (auditoría, email, post, etc.)
+3. Ejecuta las acciones con herramientas (send_email, publish_linkedin, save_to_notion)
+
+PARA OUTREACH: genera el email completo (asunto + cuerpo) en tu respuesta, luego llama send_email con ese contenido exacto.
+PARA LINKEDIN: redacta el post completo en tu respuesta, luego llama publish_linkedin.
+PARA AUDITORÍAS: analiza la empresa en tu respuesta, luego save_to_notion si piden exportar.
+PARA PIPELINES LARGOS: ejecuta un paso, muestra resultado, continúa con el siguiente. No intentes hacer todo a la vez.
+
+REGLAS:
+- Ejecuta acciones directamente sin pedir permiso. Si el usuario pide hacer algo, hazlo.
+- Cuando el usuario pida múltiples empresas: procésalas UNA A UNA, mostrando progreso entre cada una.
+- Usa search_web o scrape_url para obtener datos reales cuando ayude al análisis.
+- Responde SIEMPRE en español. Sé conciso en el texto — el trabajo va en las herramientas.`
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HANDLER
@@ -556,7 +373,7 @@ export default async function handler(req, res) {
     for (let iter = 0; iter < MAX_ITER; iter++) {
       const stream = client.messages.stream({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1200,
+        max_tokens: 1500,
         system: SYSTEM,
         tools: TOOLS,
         messages: currentMessages,
