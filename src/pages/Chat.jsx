@@ -206,7 +206,7 @@ export default function Chat() {
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Agente Hutrit</div>
             <div style={{ fontSize: 11, color: 'var(--h-muted)' }}>
-              12 herramientas · email · linkedin · instagram · búsqueda · prospección · imágenes · notion
+              sonnet-4-6 · email · linkedin · instagram · búsqueda · imágenes · notion
               {messages.filter(m => m.role === 'user').length > 0 && ` · ${messages.filter(m => m.role === 'user').length} msgs`}
             </div>
           </div>
