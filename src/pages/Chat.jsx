@@ -1,19 +1,23 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Zap, Trash2, Mail, Linkedin, CheckCircle, XCircle, Loader } from 'lucide-react'
+import { Send, Bot, User, Zap, Trash2, Mail, CheckCircle, XCircle, Loader, Search, Calendar, FileText, Link } from 'lucide-react'
 
 const STARTERS = [
-  'Manda un email de outreach a contacto@empresa.com sobre talento tech LATAM',
-  'Publica en LinkedIn: "Hutrit conecta empresas europeas con talento LATAM validado"',
-  'Redacta un email de outreach para una agencia de marketing en Barcelona',
-  'Dame 3 hooks para un post de LinkedIn sobre contratación remota',
-  'Analiza el sector de startups SaaS en España para prospección',
+  'Audita TechVenture BCN (SaaS) y mándales outreach a ceo@techventure.com',
+  'Genera un calendario de contenido de 2 semanas para empresas europeas (B2B)',
+  'Haz outreach a estas 3 empresas: Factorial (HR), Typeform (SaaS), Holded (fintech)',
+  'Publica en LinkedIn un post sobre por qué el talento LATAM es clave en 2025',
+  'Audita el sector ecommerce en España y crea contenido basado en los puntos de dolor',
 ]
 
 const STORAGE_KEY = 'hutrit_chat_history'
 
 const TOOL_LABELS = {
-  send_email:       { icon: Mail,     label: 'Enviando email',         doneLabel: 'Email enviado' },
-  publish_linkedin: { icon: Linkedin, label: 'Publicando en LinkedIn', doneLabel: 'Publicado en LinkedIn' },
+  send_email:       { icon: Mail,     label: 'Enviando email',              doneLabel: 'Email enviado' },
+  publish_linkedin: { icon: Link,     label: 'Publicando en LinkedIn',      doneLabel: 'Publicado en LinkedIn' },
+  audit_company:    { icon: Search,   label: 'Auditando empresa',           doneLabel: 'Auditoría completada' },
+  send_outreach:    { icon: Mail,     label: 'Generando y enviando outreach', doneLabel: 'Outreach enviado' },
+  generate_calendar:{ icon: Calendar, label: 'Generando calendario',        doneLabel: 'Calendario generado' },
+  save_to_notion:   { icon: FileText, label: 'Guardando en Notion',         doneLabel: 'Guardado en Notion' },
 }
 
 function ToolCard({ msg }) {
@@ -187,7 +191,7 @@ export default function Chat() {
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Agente Hutrit</div>
             <div style={{ fontSize: 11, color: 'var(--h-muted)' }}>
-              claude-haiku-4-5 · herramientas activas: email, LinkedIn
+              email · linkedin · auditoría · outreach · calendario · notion
               {messages.filter(m => m.role === 'user').length > 0 && ` · ${messages.filter(m => m.role === 'user').length} mensajes`}
             </div>
           </div>
@@ -211,8 +215,8 @@ export default function Chat() {
                 <Zap size={24} color="white" />
               </div>
               <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>¿En qué puedo ayudarte?</div>
-              <div style={{ fontSize: 13, color: 'var(--h-muted)', maxWidth: 380 }}>
-                Puedo redactar y <strong>enviar emails</strong>, <strong>publicar en LinkedIn</strong> y generar contenido. Dime qué necesitas.
+              <div style={{ fontSize: 13, color: 'var(--h-muted)', maxWidth: 420 }}>
+                Audita empresas, crea contenido, genera calendarios, envía outreach personalizado y publica en LinkedIn. Dime qué necesitas y lo ejecuto.
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 480 }}>
@@ -277,7 +281,7 @@ export default function Chat() {
             rows={1}
             className="input-field"
             style={{ resize: 'none', overflowY: 'auto', maxHeight: 120, lineHeight: 1.5 }}
-            placeholder='Ej: "Manda un email a fulano@empresa.com sobre Hutrit" o "Publica esto en LinkedIn: ..."'
+            placeholder='Ej: "Audita Factorial y mándales outreach" o "Genera calendario de 2 semanas y guárdalo en Notion"'
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
