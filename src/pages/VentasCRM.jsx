@@ -95,7 +95,7 @@ export default function VentasCRM() {
     .replace(/{{empresa}}/g, company || 'vuestra empresa')
 
   const sendEmail = async () => {
-    if (!emailTo) return
+    if (!emailTo) { setSendResult({ success: false, error: 'Escribe un email de destinatario en el campo "Para"' }); return }
     setSending(true)
     setSendResult(null)
     try {
@@ -183,7 +183,7 @@ export default function VentasCRM() {
               <div className="section-title" style={{ marginBottom: 14 }}>Datos del destinatario</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>Empresa *</label>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--h-muted)', display: 'block', marginBottom: 5 }}>Empresa</label>
                   <input className="input-field" placeholder="ej: TechVenture BCN" value={company} onChange={e => setCompany(e.target.value)} />
                 </div>
                 <div>
@@ -268,8 +268,8 @@ export default function VentasCRM() {
                 <button
                   className="btn-primary"
                   onClick={sendEmail}
-                  disabled={sending || !emailTo || !company}
-                  style={{ fontSize: 12, padding: '6px 12px', opacity: (!emailTo || !company) ? 0.5 : 1 }}
+                  disabled={sending || !emailTo}
+                  style={{ fontSize: 12, padding: '6px 12px', opacity: !emailTo ? 0.5 : 1 }}
                 >
                   {sending
                     ? <><div className="spinner" />Enviando...</>
