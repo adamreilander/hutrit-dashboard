@@ -25,11 +25,13 @@ const TOOLS = [
   },
   {
     name: 'publish_linkedin',
-    description: 'Publica un post en el LinkedIn de Hutrit. Úsalo después de redactar el post en tu respuesta.',
+    description: 'Publica un post en el LinkedIn de Hutrit. Úsalo después de redactar el post. Si tienes imageBase64 de generate_image, inclúyela.',
     input_schema: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'Texto completo del post con hashtags' },
+        text:        { type: 'string', description: 'Texto completo del post con hashtags' },
+        imageBase64: { type: 'string', description: 'Imagen en base64 generada por generate_image (opcional)' },
+        mimeType:    { type: 'string', description: 'Tipo MIME de la imagen, ej: image/png (opcional)' },
       },
       required: ['text'],
     },
@@ -147,13 +149,18 @@ async function executeTool(name, input) {
     if (name === 'publish_linkedin') {
       const url = process.env.MAKE_WEBHOOK_URL
       if (!url) return { success: false, error: 'MAKE_WEBHOOK_URL no configurada en Vercel' }
+      const payload = { text: input.text }
+      if (input.imageBase64) {
+        payload.imageBase64 = input.imageBase64
+        payload.mimeType = input.mimeType || 'image/png'
+      }
       const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: input.text }),
+        body: JSON.stringify(payload),
       })
       if (!resp.ok) return { success: false, error: 'Error al publicar en LinkedIn' }
-      return { success: true, message: 'Post publicado en LinkedIn' }
+      return { success: true, message: input.imageBase64 ? 'Post con imagen publicado en LinkedIn' : 'Post publicado en LinkedIn' }
     }
 
     if (name === 'publish_instagram') {
