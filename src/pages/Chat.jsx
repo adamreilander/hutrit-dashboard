@@ -12,18 +12,15 @@ const STARTERS = [
 const STORAGE_KEY = 'hutrit_chat_history'
 
 const TOOL_LABELS = {
-  send_email:          { icon: Mail,     label: 'Enviando email',                 doneLabel: 'Email enviado' },
-  send_outreach:       { icon: Mail,     label: 'Generando y enviando outreach',  doneLabel: 'Outreach enviado' },
-  bulk_outreach:       { icon: Users,    label: 'Enviando outreach masivo',       doneLabel: 'Outreach masivo enviado' },
-  publish_linkedin:    { icon: Link,     label: 'Publicando en LinkedIn',         doneLabel: 'Publicado en LinkedIn' },
-  publish_instagram:   { icon: Image,    label: 'Publicando en Instagram',        doneLabel: 'Publicado en Instagram' },
-  audit_company:       { icon: Search,   label: 'Auditando empresa',              doneLabel: 'Auditoría completada' },
-  search_web:          { icon: Globe,    label: 'Buscando en internet',           doneLabel: 'Búsqueda completada' },
-  scrape_url:          { icon: Globe,    label: 'Leyendo URL',                    doneLabel: 'URL leída' },
-  prospect_companies:  { icon: MapPin,   label: 'Buscando empresas',              doneLabel: 'Empresas encontradas' },
-  generate_calendar:   { icon: Calendar, label: 'Generando calendario',           doneLabel: 'Calendario generado' },
-  generate_image:      { icon: Image,    label: 'Generando imagen con IA',        doneLabel: 'Imagen generada' },
-  save_to_notion:      { icon: FileText, label: 'Guardando en Notion',            doneLabel: 'Guardado en Notion' },
+  send_email:          { icon: Mail,     label: 'Enviando email',           doneLabel: 'Email enviado' },
+  publish_linkedin:    { icon: Link,     label: 'Publicando en LinkedIn',   doneLabel: 'Publicado en LinkedIn' },
+  publish_instagram:   { icon: Image,    label: 'Publicando en Instagram',  doneLabel: 'Publicado en Instagram' },
+  search_web:          { icon: Globe,    label: 'Buscando en internet',     doneLabel: 'Búsqueda completada' },
+  scrape_url:          { icon: Globe,    label: 'Leyendo URL',              doneLabel: 'URL leída' },
+  prospect_companies:  { icon: MapPin,   label: 'Buscando empresas',        doneLabel: 'Empresas encontradas' },
+  generate_image:      { icon: Image,    label: 'Generando imagen con IA',  doneLabel: 'Imagen generada' },
+  save_to_notion:      { icon: FileText, label: 'Guardando en Notion',      doneLabel: 'Guardado en Notion' },
+  export_pdf:          { icon: FileText, label: 'Generando PDF',            doneLabel: 'PDF listo' },
 }
 
 function ToolCard({ msg }) {
@@ -56,6 +53,20 @@ function ToolCard({ msg }) {
           alt="Imagen generada"
           style={{ maxWidth: 300, borderRadius: 12, border: '1px solid var(--h-border)', boxShadow: 'var(--shadow-sm)' }}
         />
+      )}
+      {msg.toolName === 'export_pdf' && msg.status === 'done' && msg.success && msg.pdfHtml && (
+        <button
+          onClick={() => {
+            const html = atob(msg.pdfHtml)
+            const w = window.open('', '_blank')
+            w.document.write(html)
+            w.document.close()
+          }}
+          className="btn-primary"
+          style={{ fontSize: 12, padding: '6px 14px' }}
+        >
+          <FileText size={12} /> Abrir PDF
+        </button>
       )}
     </div>
   )
@@ -154,6 +165,7 @@ export default function Chat() {
                       // pass through image data if present
                       imageBase64: event.toolResult.imageBase64 || null,
                       mimeType: event.toolResult.mimeType || null,
+                      pdfHtml: event.toolResult.pdfHtml || null,
                     }
                     break
                   }

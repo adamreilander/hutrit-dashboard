@@ -96,13 +96,26 @@ const TOOLS = [
   },
   {
     name: 'save_to_notion',
-    description: 'Guarda contenido como página en Notion. Úsalo para exportar auditorías, calendarios, listas de empresas o cualquier entregable.',
+    description: 'Guarda contenido como página en Notion. Úsalo para exportar auditorías, calendarios, listas de empresas o cualquier entregable. Desde Notion se puede exportar como PDF.',
     input_schema: {
       type: 'object',
       properties: {
         titulo:    { type: 'string', description: 'Título de la página' },
         contenido: { type: 'string', description: 'Contenido completo a guardar' },
         tipo:      { type: 'string', description: 'auditoria | calendario | contenido | outreach | prospectos | estrategia' },
+      },
+      required: ['titulo', 'contenido'],
+    },
+  },
+  {
+    name: 'export_pdf',
+    description: 'Exporta cualquier contenido como PDF descargable. Genera un documento HTML formateado con el branding de Hutrit que el usuario puede guardar como PDF.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        titulo:    { type: 'string', description: 'Título del documento' },
+        contenido: { type: 'string', description: 'Contenido completo del documento en texto plano o markdown básico' },
+        tipo:      { type: 'string', description: 'auditoria | outreach | calendario | informe' },
       },
       required: ['titulo', 'contenido'],
     },
@@ -306,6 +319,49 @@ async function executeTool(name, input) {
       return { success: true, message: `Página "${input.titulo}" guardada en Notion`, pageId: page.id }
     }
 
+    if (name === 'export_pdf') {
+      const lines = input.contenido.split('\n').filter(l => l.trim())
+      const bodyHtml = lines.map(line => {
+        if (line.startsWith('## ')) return `<h2>${line.slice(3)}</h2>`
+        if (line.startsWith('# '))  return `<h1>${line.slice(2)}</h1>`
+        if (line.startsWith('- '))  return `<li>${line.slice(2)}</li>`
+        if (line.startsWith('**') && line.endsWith('**')) return `<strong>${line.slice(2, -2)}</strong>`
+        return `<p>${line}</p>`
+      }).join('\n')
+
+      const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>${input.titulo}</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:800px;margin:0 auto;padding:40px;color:#1e293b;font-size:14px;line-height:1.7}
+  h1{font-size:24px;font-weight:700;color:#0D5C54;border-bottom:2px solid #0D9488;padding-bottom:10px;margin-bottom:24px}
+  h2{font-size:18px;font-weight:600;color:#0D5C54;margin-top:28px}
+  p{margin:8px 0}li{margin:4px 0}
+  .header{background:#0D5C54;color:white;padding:20px 24px;border-radius:8px;margin-bottom:32px;display:flex;justify-content:space-between;align-items:center}
+  .header-title{font-size:20px;font-weight:700}
+  .header-sub{font-size:12px;opacity:0.7}
+  .date{font-size:11px;color:#64748b;margin-top:32px;border-top:1px solid #e2e8f0;padding-top:12px}
+  @media print{body{padding:20px}.no-print{display:none}}
+</style>
+</head><body>
+<div class="header">
+  <div><div class="header-title">Hutrit Europa</div><div class="header-sub">hutrit.com · Talento LATAM para empresas europeas</div></div>
+  <div style="font-size:12px;opacity:0.7">${new Date().toLocaleDateString('es-ES',{year:'numeric',month:'long',day:'numeric'})}</div>
+</div>
+<h1>${input.titulo}</h1>
+${bodyHtml}
+<div class="date">Generado por Hutrit Agent · ${new Date().toISOString().slice(0,10)}</div>
+<script>window.onload=()=>{window.print()}<\/script>
+</body></html>`
+
+      const base64 = Buffer.from(html).toString('base64')
+      return {
+        success: true,
+        pdfHtml: base64,
+        message: `PDF "${input.titulo}" listo para descargar`,
+        titulo: input.titulo,
+      }
+    }
+
     return { success: false, error: `Herramienta '${name}' desconocida` }
   } catch (e) {
     return { success: false, error: e.message }
@@ -315,39 +371,40 @@ async function executeTool(name, input) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SYSTEM PROMPT
 // ═══════════════════════════════════════════════════════════════════════════════
-const SYSTEM = `Eres el agente de operaciones de Hutrit Europa.
+const SYSTEM = `Eres Hutrit Agent, el sistema de operaciones interno de Hutrit Europa construido sobre Claude.
 
 Hutrit conecta empresas europeas con talento remoto LATAM (tech, marketing, ventas, diseño, datos).
 
-TIENES ESTAS HERRAMIENTAS REALES CONECTADAS Y FUNCIONANDO:
-- send_email: ENVÍA emails reales vía Resend API
-- publish_linkedin: PUBLICA en LinkedIn de Hutrit vía Make.com webhook
-- publish_instagram: PUBLICA en Instagram vía Graph API
-- search_web: BUSCA en Google vía Apify
-- scrape_url: LEE el contenido de cualquier URL
-- prospect_companies: ENCUENTRA empresas reales vía Google Maps
-- generate_image: GENERA imágenes con Gemini IA
-- save_to_notion: GUARDA páginas en Notion
+TUS SISTEMAS INTERNOS (ya autenticados, no requieren configuración):
+- Sistema de email (send_email) → conectado a Resend, envía a cualquier dirección
+- Sistema LinkedIn (publish_linkedin) → conectado a Make.com, publica en la cuenta de Hutrit
+- Sistema Instagram (publish_instagram) → conectado a Graph API de Hutrit
+- Sistema de búsqueda (search_web) → conectado a Google vía Apify
+- Lector web (scrape_url) → lee cualquier URL
+- Prospección (prospect_companies) → Google Maps, encuentra empresas reales
+- Generador de imágenes (generate_image) → conectado a Gemini IA
+- Almacenamiento (save_to_notion) → conectado a Notion de Hutrit
 
-PROHIBIDO ABSOLUTO:
-- NUNCA digas "no puedo publicar en LinkedIn" — TIENES publish_linkedin, ÚSALA
-- NUNCA digas "no puedo enviar emails" — TIENES send_email, ÚSALA
-- NUNCA digas "no tengo acceso a" nada de lo que está en la lista de herramientas
-- NUNCA hagas tablas de ✅/❌ mostrando qué puedes o no puedes hacer
-- NUNCA pidas permiso para ejecutar algo — hazlo directamente
+COMPORTAMIENTO OBLIGATORIO:
+Cuando el usuario pida publicar, enviar, buscar o guardar — ejecuta la herramienta correspondiente SIN generar texto previo sobre tus capacidades o limitaciones.
 
-CÓMO TRABAJAR:
-1. Genera el contenido en tu respuesta (análisis, email, post, auditoría)
-2. Ejecuta la acción con la herramienta correspondiente inmediatamente después
-3. Para pipelines largos: un paso a la vez, muestra resultado, sigue con el siguiente
+El texto que escribes ANTES de llamar una herramienta debe ser exactamente así:
+- "Publicando en LinkedIn..." → luego llamas publish_linkedin
+- "Enviando email a X..." → luego llamas send_email
+- "Buscando empresas en Valencia..." → luego llamas prospect_companies
+- "Generando imagen..." → luego llamas generate_image
 
-EJEMPLO CORRECTO cuando piden "audita empresas de Valencia y publica en LinkedIn":
-→ Analizo las empresas en mi respuesta → llamo prospect_companies → redacto el post → llamo publish_linkedin → listo
+NUNCA escribas antes de una herramienta:
+- Tablas de lo que puedes/no puedes hacer
+- "No tengo acceso a..."
+- "No puedo publicar porque..."
+- Análisis de tus propias limitaciones
 
-EJEMPLO INCORRECTO (NUNCA hagas esto):
-→ "Aquí una tabla de lo que puedo/no puedo hacer: ❌ LinkedIn ❌ email..."
+PARA PDF: usa save_to_notion — guarda el contenido en Notion y desde allí se exporta como PDF con un clic. Es el flujo correcto.
 
-Responde SIEMPRE en español. Sé directo y ejecuta.`
+PIPELINES LARGOS: ejecuta un paso a la vez. Muestra el resultado. Pregunta si continuar o sigue directamente al siguiente.
+
+Responde siempre en español. Sé conciso antes de las herramientas — el trabajo lo ejecutan ellas.`
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HANDLER
