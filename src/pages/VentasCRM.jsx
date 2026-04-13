@@ -225,9 +225,16 @@ export default function VentasCRM() {
                   : <AlertCircle size={16} color="#DC2626" style={{ flexShrink: 0, marginTop: 1 }} />}
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 500, color: sendResult.success ? '#065F46' : '#9F1239' }}>
-                    {sendResult.success ? `Email enviado correctamente` : 'Error al enviar'}
+                    {sendResult.success
+                      ? sendResult.testMode
+                        ? `Email de prueba enviado a ${sendResult.deliveredTo}`
+                        : `Email enviado correctamente`
+                      : 'Error al enviar'}
                   </div>
-                  {sendResult.success && sendResult.id && (
+                  {sendResult.success && sendResult.testMode && (
+                    <div style={{ fontSize: 11, color: '#0D9488', marginTop: 2 }}>Modo prueba activo — añade RESEND_TEST_EMAIL en Vercel para recibir los tests</div>
+                  )}
+                  {sendResult.success && !sendResult.testMode && sendResult.id && (
                     <div style={{ fontSize: 11, color: '#0D9488', marginTop: 2 }}>Resend ID: {sendResult.id}</div>
                   )}
                   {!sendResult.success && (
