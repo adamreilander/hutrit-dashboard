@@ -21,6 +21,8 @@ export default function AgenteMarketing({ onDone, onBack }) {
   })
   const [data, setData] = useState(null)
   const [imageBase64, setImageBase64] = useState(null)
+  const [imageUrl, setImageUrl] = useState(null)
+  const [imageError, setImageError] = useState(false)
   const [loadingStep, setLoadingStep] = useState(0)
   const [showModal, setShowModal] = useState(false)
   const [error, setError] = useState('')
@@ -49,8 +51,10 @@ export default function AgenteMarketing({ onDone, onBack }) {
       const contentData = await contentRes.json()
       if (!contentData || contentData.error) throw new Error(contentData?.error || 'Error generando contenido')
 
-      // Generate creative image (optional)
+      // Generate creative image (optional — never blocks the rest)
       let imgBase64 = null
+      let imgUrl = null
+      let imgFailed = false
       try {
         const imgRes = await fetch('/api/generate-creative', {
           method: 'POST',
@@ -63,12 +67,17 @@ export default function AgenteMarketing({ onDone, onBack }) {
         const imgData = await imgRes.json()
         if (imgData.success && imgData.imageBase64) {
           imgBase64 = `data:${imgData.mimeType || 'image/png'};base64,${imgData.imageBase64}`
+          imgUrl = imgData.imageUrl || null
+        } else {
+          imgFailed = true
         }
-      } catch (_) { /* image is optional */ }
+      } catch (_) { imgFailed = true }
 
       clearInterval(interval)
       setData(contentData)
       setImageBase64(imgBase64)
+      setImageUrl(imgUrl)
+      setImageError(imgFailed)
       setStep('results')
     } catch (err) {
       clearInterval(interval)
@@ -78,7 +87,7 @@ export default function AgenteMarketing({ onDone, onBack }) {
   }
 
   const handleDownload = (fields) => {
-    generateMarketingReportPDF(data, fields, imageBase64)
+    generateMarketingReportPDF(data, fields, imageBase64, imageUrl)
     setShowModal(false)
     // Fire-and-forget lead capture
     fetch('/api/capture-lead', {
@@ -106,6 +115,8 @@ export default function AgenteMarketing({ onDone, onBack }) {
         <MarketingResults
           data={data}
           imageBase64={imageBase64}
+          imageUrl={imageUrl}
+          imageError={imageError}
           empresa={form.empresa}
           onDownload={() => setShowModal(true)}
           onBack={onBack}
@@ -254,7 +265,7 @@ export default function AgenteMarketing({ onDone, onBack }) {
 
 // ── Results ──────────────────────────────────────────────────────────────────
 
-function MarketingResults({ data, imageBase64, empresa, onDownload, onBack }) {
+function MarketingResults({ data, imageBase64, imageUrl, imageError, empresa, onDownload, onBack }) {
   return (
     <div style={pageWrap}>
       <TopBar onBack={onBack} label="Agente Marketing" emoji="✨" accentColor="#22C55E" />
@@ -316,46 +327,54 @@ function MarketingResults({ data, imageBase64, empresa, onDownload, onBack }) {
             </div>
           )}
 
-          {/* Creative image */}
-          {imageBase64 && (
-            <div className="card fade-in" style={{ gridColumn: 'span 2' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={sectionTitle}>🎨 Creativo visual generado con IA</div>
-                <a
-                  href={imageBase64}
-                  download={`creativo-${empresa || 'marca'}.png`}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 7,
-                    fontSize: 12, fontWeight: 700,
-                    color: '#16A34A', background: '#F0FDF4',
-                    border: '1px solid #86EFAC', borderRadius: 8,
-                    padding: '7px 14px', textDecoration: 'none',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#DCFCE7'; e.currentTarget.style.borderColor = '#4ADE80' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#F0FDF4'; e.currentTarget.style.borderColor = '#86EFAC' }}
-                >
-                  ⬇ Descargar PNG
-                </a>
-              </div>
+          {/* Creative image — always shown */}
+          <div className="card fade-in" style={{ gridColumn: 'span 2' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={sectionTitle}>🎨 Creativo visual generado con IA</div>
+              {/* Download button: use hosted URL if available, otherwise base64 inline download */}
+              {imageBase64 && (
+                imageUrl ? (
+                  <a
+                    href={imageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={downloadBtnStyle}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#DCFCE7'; e.currentTarget.style.borderColor = '#4ADE80' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#F0FDF4'; e.currentTarget.style.borderColor = '#86EFAC' }}
+                  >
+                    ⬇ Descargar PNG
+                  </a>
+                ) : (
+                  <a
+                    href={imageBase64}
+                    download={`creativo-${empresa || 'marca'}.png`}
+                    style={downloadBtnStyle}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#DCFCE7'; e.currentTarget.style.borderColor = '#4ADE80' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#F0FDF4'; e.currentTarget.style.borderColor = '#86EFAC' }}
+                  >
+                    ⬇ Descargar PNG
+                  </a>
+                )
+              )}
+            </div>
+
+            {imageBase64 ? (
               <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 <img
-                  src={imageBase64}
+                  src={imageUrl || imageBase64}
                   alt="Creativo de marca"
                   style={{
-                    width: 320, height: 320, borderRadius: 16,
+                    width: 300, height: 300, borderRadius: 16,
                     objectFit: 'cover', flexShrink: 0,
                     boxShadow: '0 8px 32px rgba(13,92,84,0.15)',
                     border: '1px solid #C8E0DD',
                   }}
                 />
-                <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {data.creativo_concepto?.mensaje_clave && (
                     <div style={{ padding: '14px 16px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: '#16A34A', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Mensaje clave</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#14532D', lineHeight: 1.4 }}>
-                        {data.creativo_concepto.mensaje_clave}
-                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#14532D', lineHeight: 1.4 }}>{data.creativo_concepto.mensaje_clave}</div>
                     </div>
                   )}
                   {data.creativo_concepto?.descripcion && (
@@ -366,12 +385,20 @@ function MarketingResults({ data, imageBase64, empresa, onDownload, onBack }) {
                   )}
                   <div style={{ padding: '12px 16px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: '#D97706', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Uso recomendado</div>
-                    <div style={{ fontSize: 12, color: '#92400E' }}>Listo para Instagram (1080×1080) y LinkedIn. Descarga el PNG y añade tu texto con Canva o cualquier editor.</div>
+                    <div style={{ fontSize: 12, color: '#92400E' }}>Listo para Instagram (1080×1080) y LinkedIn. Descarga el PNG y añade tu texto en Canva.</div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            ) : imageError ? (
+              <div style={{ padding: '24px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, fontSize: 13, color: '#DC2626', textAlign: 'center' }}>
+                ⚠️ No se pudo generar la imagen esta vez. El resto del pack está completo y en el PDF.
+              </div>
+            ) : (
+              <div style={{ padding: '24px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, fontSize: 13, color: '#15803D', textAlign: 'center' }}>
+                ✨ Generando creativo visual...
+              </div>
+            )}
+          </div>
 
           {/* Calendar */}
           {data.calendario?.length > 0 && (
@@ -467,6 +494,14 @@ function Field({ label, hint, children }) {
 }
 
 const sectionTitle = { fontSize: 13, fontWeight: 700, color: '#0D2B28', marginBottom: 14, letterSpacing: '-0.01em' }
+const downloadBtnStyle = {
+  display: 'flex', alignItems: 'center', gap: 7,
+  fontSize: 12, fontWeight: 700,
+  color: '#16A34A', background: '#F0FDF4',
+  border: '1px solid #86EFAC', borderRadius: 8,
+  padding: '7px 14px', textDecoration: 'none',
+  transition: 'all 0.15s',
+}
 
 const pageWrap = { minHeight: '100vh', background: 'var(--h-surface)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans)' }
 const outerWrap = { flex: 1, padding: '32px 28px', maxWidth: 1040, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }

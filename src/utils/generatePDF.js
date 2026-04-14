@@ -570,7 +570,7 @@ export function generateSEOReportPDF(data = {}, email = '') {
 
 // ─── Demo: Marketing Report ───────────────────────────────────────────────────
 
-export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 = null) {
+export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 = null, imageUrl = null) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const W = doc.internal.pageSize.getWidth()
   let pageNum = 1
@@ -677,7 +677,17 @@ export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 =
         if (data.creativo_concepto.descripcion) {
           const dl = doc.splitTextToSize(data.creativo_concepto.descripcion, W - 24)
           doc.text(dl, 12, y)
+          y += dl.length * 4 + 6
         }
+      }
+      // Clickable download link if image is hosted
+      if (imageUrl) {
+        doc.setFontSize(10); doc.setFont(undefined, 'bold')
+        doc.setTextColor(13, 148, 136) // teal
+        doc.textWithLink('⬇  Descargar creativo en alta resolución (PNG)', 12, y, { url: imageUrl })
+        doc.setTextColor(...C.muted); doc.setFontSize(8); doc.setFont(undefined, 'normal')
+        y += 5
+        doc.text(imageUrl, 12, y)
       }
     } catch (_) { /* skip image if error */ }
   }
