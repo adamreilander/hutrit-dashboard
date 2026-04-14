@@ -86,13 +86,18 @@ Genera exactamente 8 prospectos: 2 prioridad alta, 3 media, 3 baja. Empresas rea
 
     // Enrich with Google Places if key is available
     const googleKey = process.env.GOOGLE_PLACES_API_KEY
+    const enrichDebug = { key_present: !!googleKey, enriched: 0, sample: null }
+
     if (googleKey && data.prospectos?.length) {
       const enrichments = await Promise.all(
         data.prospectos.map(p => enrichProspecto(p.empresa, ciudad, googleKey))
       )
       data.prospectos = data.prospectos.map((p, i) => ({ ...p, ...enrichments[i] }))
+      enrichDebug.enriched = enrichments.filter(e => e.telefono || e.web || e.direccion).length
+      enrichDebug.sample = enrichments[0] || null
     }
 
+    data._debug_enrich = enrichDebug
     return res.json(data)
   } catch (err) {
     if (err instanceof SyntaxError) {
