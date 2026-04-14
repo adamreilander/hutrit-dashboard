@@ -50,7 +50,7 @@ export default function AgenteVentas({ onDone, onBack }) {
   }
 
   const handleDownload = (fields) => {
-    generateVentasReportPDF(data, fields.email)
+    generateVentasReportPDF(data, fields)
     setShowModal(false)
     // Fire-and-forget lead capture
     fetch('/api/capture-lead', {
@@ -290,10 +290,34 @@ function VentasResults({ data, onDownload, onBack }) {
                   <div style={{
                     marginLeft: 52, background: '#FFFBEB',
                     border: '1px solid #FED7AA', borderRadius: 8,
-                    padding: '8px 12px',
+                    padding: '8px 12px', marginBottom: (p.telefono || p.direccion || p.web) ? 8 : 0,
                   }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: '#D97706', marginRight: 6 }}>CÓMO CONTACTAR:</span>
                     <span style={{ fontSize: 12, color: '#78350F' }}>{p.angulo_outreach}</span>
+                  </div>
+                )}
+
+                {/* Contact info from Google Places */}
+                {(p.telefono || p.direccion || p.web) && (
+                  <div style={{
+                    marginLeft: 52, marginTop: 6,
+                    display: 'flex', flexWrap: 'wrap', gap: 8,
+                  }}>
+                    {p.telefono && (
+                      <a href={`tel:${p.telefono}`} style={contactChip}>
+                        📞 {p.telefono}
+                      </a>
+                    )}
+                    {p.direccion && (
+                      <span style={{ ...contactChip, cursor: 'default' }}>
+                        📍 {p.direccion}
+                      </span>
+                    )}
+                    {p.web && (
+                      <a href={p.web} target="_blank" rel="noopener noreferrer" style={contactChip}>
+                        🌐 {p.web.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                      </a>
+                    )}
                   </div>
                 )}
               </div>
@@ -385,6 +409,13 @@ const infoCard = { background: 'linear-gradient(160deg, #0D5C54 0%, #094840 100%
 const cardTitle = { fontSize: 21, fontWeight: 800, color: '#0D2B28', marginBottom: 8, letterSpacing: '-0.025em', lineHeight: 1.2 }
 const cardSub = { fontSize: 13, color: '#5A8A85', lineHeight: 1.65 }
 const errorBox = { fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px' }
+
+const contactChip = {
+  fontSize: 11, fontWeight: 600, padding: '4px 10px',
+  borderRadius: 8, background: '#F7FAFA', border: '1px solid #C8E0DD',
+  color: '#5A8A85', textDecoration: 'none', display: 'inline-flex',
+  alignItems: 'center', gap: 4,
+}
 
 function agentBadge(color) {
   return { display: 'inline-block', fontSize: 11, fontWeight: 700, color, background: color + '12', border: `1px solid ${color}25`, borderRadius: 20, padding: '4px 12px', marginBottom: 14, letterSpacing: '0.03em' }

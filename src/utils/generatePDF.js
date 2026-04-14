@@ -728,13 +728,19 @@ export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 =
 
 // ─── Demo: Ventas / Prospects Report ─────────────────────────────────────────
 
-export function generateVentasReportPDF(data = {}, email = '') {
+export function generateVentasReportPDF(data = {}, fields = {}) {
+  const email = typeof fields === 'string' ? fields : (fields.email || '')
+  const nombre = typeof fields === 'object' ? (fields.nombre || '') : ''
+  const empresa = typeof fields === 'object' ? (fields.empresa || '') : ''
+
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const W = doc.internal.pageSize.getWidth()
   let pageNum = 1
+  const totalPages = 3
 
-  addCover(doc, 'Lista de Prospectos', data.oferta ? (data.oferta.slice(0, 40) + (data.oferta.length > 40 ? '...' : '')) : 'Tu oferta', '', 'Empresas calificadas y estrategia de outreach')
-  addPageFooter(doc, pageNum, 3)
+  const ofertaSlug = data.oferta ? (data.oferta.slice(0, 40) + (data.oferta.length > 40 ? '...' : '')) : 'Tu oferta'
+  addCover(doc, 'Lista de Prospectos', cleanText(ofertaSlug), '', 'Empresas calificadas y estrategia de outreach')
+  addPageFooter(doc, pageNum, totalPages)
 
   // Page 2: Strategy + Prospects table
   doc.addPage(); pageNum++
@@ -742,29 +748,58 @@ export function generateVentasReportPDF(data = {}, email = '') {
   let y = 24
 
   if (data.estrategia_general) {
-    doc.setFillColor(...C.accent); doc.roundedRect(12, y, W - 24, 18, 4, 4, 'F')
+    const sl = doc.splitTextToSize(cleanText(data.estrategia_general), W - 48)
+    const boxH = Math.max(20, sl.length * 5 + 14)
+    doc.setFillColor(...C.accent); doc.roundedRect(12, y, W - 24, boxH, 4, 4, 'F')
     doc.setTextColor(...C.white); doc.setFontSize(9); doc.setFont(undefined, 'bold')
     doc.text('ESTRATEGIA DE VENTAS', 20, y + 6)
     doc.setFontSize(10); doc.setFont(undefined, 'normal')
-    const sl = doc.splitTextToSize(data.estrategia_general, W - 48)
     doc.text(sl, 20, y + 13)
-    y += Math.max(18, sl.length * 5 + 14) + 8
+    y += boxH + 8
   }
 
   if (data.prospectos?.length) {
     doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
     doc.text('Empresas objetivo', 12, y); y += 4
+
+    const hasContactData = data.prospectos.some(p => p.telefono || p.web)
+    const tableHead = hasContactData
+      ? [['Empresa', 'Sector', 'Prioridad', 'Telefono', 'Web']]
+      : [['Empresa', 'Sector', 'Tamaño', 'Prioridad']]
+
+    const tableBody = data.prospectos.map(p => hasContactData
+      ? [
+          cleanText(p.empresa || ''),
+          cleanText(p.sector || ''),
+          (p.prioridad || 'MEDIA').toUpperCase(),
+          cleanText(p.telefono || '-'),
+          cleanText((p.web || '-').replace(/^https?:\/\//, '').replace(/\/$/, '').slice(0, 28)),
+        ]
+      : [
+          cleanText(p.empresa || ''),
+          cleanText(p.sector || ''),
+          cleanText(p.tamaño || ''),
+          (p.prioridad || 'MEDIA').toUpperCase(),
+        ]
+    )
+
+    const colStyles = hasContactData
+      ? { 0: { fontStyle: 'bold', cellWidth: 42 }, 2: { halign: 'center', fontStyle: 'bold', cellWidth: 20 }, 3: { cellWidth: 28 }, 4: { cellWidth: 40 } }
+      : { 0: { fontStyle: 'bold' }, 3: { halign: 'center', fontStyle: 'bold', cellWidth: 22 } }
+
+    const prioColIdx = hasContactData ? 2 : 3
+
     autoTable(doc, {
       startY: y,
-      head: [['Empresa', 'Sector', 'Tamaño', 'Prioridad']],
-      body: data.prospectos.map(p => [p.empresa, p.sector, p.tamaño, (p.prioridad || 'MEDIA').toUpperCase()]),
-      headStyles: { fillColor: C.primary, textColor: C.white, fontStyle: 'bold', fontSize: 9 },
-      bodyStyles: { fontSize: 9, textColor: C.text },
-      columnStyles: { 0: { fontStyle: 'bold' }, 3: { halign: 'center', fontStyle: 'bold', cellWidth: 22 } },
+      head: tableHead,
+      body: tableBody,
+      headStyles: { fillColor: C.primary, textColor: C.white, fontStyle: 'bold', fontSize: 8 },
+      bodyStyles: { fontSize: 8, textColor: C.text },
+      columnStyles: colStyles,
       alternateRowStyles: { fillColor: [247, 250, 250] },
       margin: { left: 12, right: 12 },
       didParseCell(d) {
-        if (d.section === 'body' && d.column.index === 3) {
+        if (d.section === 'body' && d.column.index === prioColIdx) {
           const v = (d.cell.raw || '').toLowerCase()
           if (v === 'alta') d.cell.styles.textColor = C.red
           else if (v === 'media') d.cell.styles.textColor = C.amber
@@ -774,7 +809,7 @@ export function generateVentasReportPDF(data = {}, email = '') {
     })
   }
 
-  addPageFooter(doc, pageNum, 3)
+  addPageFooter(doc, pageNum, totalPages)
 
   // Page 3: Outreach details
   doc.addPage(); pageNum++
@@ -787,26 +822,46 @@ export function generateVentasReportPDF(data = {}, email = '') {
     doc.text('Prospectos de alta prioridad', 12, y); y += 8
 
     alta.forEach(p => {
-      if (y > 240) { doc.addPage(); pageNum++; addPageHeader(doc, 'Outreach'); y = 24 }
+      if (y > 230) { doc.addPage(); pageNum++; addPageHeader(doc, 'Outreach'); y = 24 }
       doc.setFillColor(...C.surface); doc.roundedRect(12, y, W - 24, 6, 2, 2, 'F')
       doc.setTextColor(...C.primary); doc.setFontSize(10); doc.setFont(undefined, 'bold')
-      doc.text(p.empresa, 16, y + 4)
+      doc.text(cleanText(p.empresa || ''), 16, y + 4)
       doc.setFillColor(...C.red); doc.roundedRect(W - 30, y + 1, 18, 4, 1, 1, 'F')
       doc.setTextColor(...C.white); doc.setFontSize(7); doc.text('ALTA', W - 21, y + 4, { align: 'center' })
       y += 10
+
       if (p.por_que) {
         doc.setTextColor(...C.text); doc.setFontSize(9); doc.setFont(undefined, 'normal')
-        const wl = doc.splitTextToSize(p.por_que, W - 24)
+        const wl = doc.splitTextToSize(cleanText(p.por_que), W - 24)
         doc.text(wl, 12, y); y += wl.length * 5 + 4
       }
+
       if (p.angulo_outreach) {
-        doc.setFillColor(255, 247, 237); doc.roundedRect(12, y, W - 24, 10, 2, 2, 'F')
+        const al = doc.splitTextToSize(cleanText(p.angulo_outreach), W - 52)
+        const aBoxH = Math.max(10, al.length * 4 + 6)
+        doc.setFillColor(255, 247, 237); doc.roundedRect(12, y, W - 24, aBoxH, 2, 2, 'F')
         doc.setTextColor(120, 53, 15); doc.setFontSize(8); doc.setFont(undefined, 'bold')
-        doc.text('ÁNGULO:', 16, y + 4)
-        doc.setFont(undefined, 'normal'); doc.setFontSize(8)
-        const al = doc.splitTextToSize(p.angulo_outreach, W - 52)
+        doc.text('ANGULO:', 16, y + 4)
+        doc.setFont(undefined, 'normal')
         doc.text(al, 38, y + 4)
-        y += Math.max(10, al.length * 4 + 6) + 6
+        y += aBoxH + 4
+      }
+
+      // Contact info from Google Places
+      const contactParts = []
+      if (p.telefono) contactParts.push(`Tel: ${cleanText(p.telefono)}`)
+      if (p.direccion) contactParts.push(`Dir: ${cleanText(p.direccion)}`)
+      if (p.web) contactParts.push(`Web: ${cleanText(p.web.replace(/^https?:\/\//, '').replace(/\/$/, ''))}`)
+      if (contactParts.length) {
+        const cl = doc.splitTextToSize(contactParts.join('  |  '), W - 28)
+        const cBoxH = cl.length * 4 + 8
+        doc.setFillColor(240, 253, 250); doc.roundedRect(12, y, W - 24, cBoxH, 2, 2, 'F')
+        doc.setDrawColor(...C.border); doc.setLineWidth(0.2); doc.roundedRect(12, y, W - 24, cBoxH, 2, 2, 'S')
+        doc.setTextColor(...C.muted); doc.setFontSize(8); doc.setFont(undefined, 'normal')
+        doc.text(cl, 16, y + 5)
+        y += cBoxH + 6
+      } else {
+        y += 4
       }
     })
   }
@@ -815,19 +870,21 @@ export function generateVentasReportPDF(data = {}, email = '') {
     if (y > 180) { doc.addPage(); pageNum++; addPageHeader(doc, 'Plantilla Email'); y = 24 }
     doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
     doc.text('Plantilla de primer contacto', 12, y); y += 8
-    doc.setFillColor(...C.surface); const tl = doc.splitTextToSize(data.email_template, W - 36)
+    const tl = doc.splitTextToSize(cleanText(data.email_template), W - 36)
     const th = tl.length * 5 + 12
+    doc.setFillColor(...C.surface)
     doc.roundedRect(12, y, W - 24, th, 3, 3, 'F')
     doc.setDrawColor(...C.border); doc.setLineWidth(0.3); doc.roundedRect(12, y, W - 24, th, 3, 3, 'S')
     doc.setTextColor(...C.text); doc.setFontSize(9); doc.setFont(undefined, 'normal')
     doc.text(tl, 18, y + 8); y += th + 6
   }
 
-  if (email) {
+  if (email || nombre || empresa) {
     doc.setTextColor(...C.muted); doc.setFontSize(9)
-    doc.text(`Generado para: ${email}`, 12, y)
+    const parts = [nombre, empresa, email].filter(Boolean).map(cleanText)
+    doc.text(`Generado para: ${parts.join(' · ')}`, 12, y)
   }
 
-  addPageFooter(doc, pageNum, 3)
+  addPageFooter(doc, pageNum, totalPages)
   doc.save(filename('Lista_Prospectos', (data.prospectos?.[0]?.sector || 'ventas')))
 }
