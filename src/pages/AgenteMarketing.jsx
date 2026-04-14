@@ -318,18 +318,58 @@ function MarketingResults({ data, imageBase64, empresa, onDownload, onBack }) {
 
           {/* Creative image */}
           {imageBase64 && (
-            <div className="card fade-in">
-              <div style={sectionTitle}>🎨 Creativo visual generado con IA</div>
-              <img
-                src={imageBase64}
-                alt="Creativo de marca"
-                style={{ width: '100%', borderRadius: 12, objectFit: 'cover', maxHeight: 260 }}
-              />
-              {data.creativo_concepto?.mensaje_clave && (
-                <div style={{ marginTop: 12, padding: '10px 14px', background: '#F0FDF4', borderRadius: 8, fontSize: 12, color: '#15803D', fontWeight: 600 }}>
-                  💡 {data.creativo_concepto.mensaje_clave}
+            <div className="card fade-in" style={{ gridColumn: 'span 2' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={sectionTitle}>🎨 Creativo visual generado con IA</div>
+                <a
+                  href={imageBase64}
+                  download={`creativo-${empresa || 'marca'}.png`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    fontSize: 12, fontWeight: 700,
+                    color: '#16A34A', background: '#F0FDF4',
+                    border: '1px solid #86EFAC', borderRadius: 8,
+                    padding: '7px 14px', textDecoration: 'none',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#DCFCE7'; e.currentTarget.style.borderColor = '#4ADE80' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#F0FDF4'; e.currentTarget.style.borderColor = '#86EFAC' }}
+                >
+                  ⬇ Descargar PNG
+                </a>
+              </div>
+              <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <img
+                  src={imageBase64}
+                  alt="Creativo de marca"
+                  style={{
+                    width: 320, height: 320, borderRadius: 16,
+                    objectFit: 'cover', flexShrink: 0,
+                    boxShadow: '0 8px 32px rgba(13,92,84,0.15)',
+                    border: '1px solid #C8E0DD',
+                  }}
+                />
+                <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {data.creativo_concepto?.mensaje_clave && (
+                    <div style={{ padding: '14px 16px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#16A34A', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Mensaje clave</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#14532D', lineHeight: 1.4 }}>
+                        {data.creativo_concepto.mensaje_clave}
+                      </div>
+                    </div>
+                  )}
+                  {data.creativo_concepto?.descripcion && (
+                    <div style={{ padding: '14px 16px', background: '#F7FAFA', border: '1px solid #C8E0DD', borderRadius: 12 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#5A8A85', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Concepto visual</div>
+                      <p style={{ fontSize: 13, color: '#4B6E6B', lineHeight: 1.6 }}>{data.creativo_concepto.descripcion}</p>
+                    </div>
+                  )}
+                  <div style={{ padding: '12px 16px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#D97706', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Uso recomendado</div>
+                    <div style={{ fontSize: 12, color: '#92400E' }}>Listo para Instagram (1080×1080) y LinkedIn. Descarga el PNG y añade tu texto con Canva o cualquier editor.</div>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 

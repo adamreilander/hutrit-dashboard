@@ -660,19 +660,23 @@ export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 =
 
   if (imageBase64) {
     try {
-      if (y > 180) { doc.addPage(); pageNum++; addPageHeader(doc, data.empresa || ''); y = 24 }
+      doc.addPage(); pageNum++; addPageHeader(doc, data.empresa || ''); y = 24
       doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
-      doc.text('Creativo visual generado', 12, y); y += 6
-      const imgH = 60
-      doc.addImage(imageBase64, 'JPEG', 12, y, 60, imgH)
+      doc.text('Creativo visual generado con IA', 12, y); y += 8
+      // Square image — centered, max 140mm to fit on A4 page
+      const imgSize = Math.min(W - 24, 140)
+      const imgX = (W - imgSize) / 2
+      doc.addImage(imageBase64, 'PNG', imgX, y, imgSize, imgSize)
+      y += imgSize + 6
       if (data.creativo_concepto?.mensaje_clave) {
         doc.setTextColor(...C.text); doc.setFontSize(10); doc.setFont(undefined, 'bold')
-        const ml = doc.splitTextToSize(data.creativo_concepto.mensaje_clave, W - 88)
-        doc.text(ml, 80, y + 10)
+        const ml = doc.splitTextToSize(`${data.creativo_concepto.mensaje_clave}`, W - 24)
+        doc.text(ml, 12, y)
+        y += ml.length * 5 + 4
         doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(...C.muted)
         if (data.creativo_concepto.descripcion) {
-          const dl = doc.splitTextToSize(data.creativo_concepto.descripcion, W - 88)
-          doc.text(dl, 80, y + 20)
+          const dl = doc.splitTextToSize(data.creativo_concepto.descripcion, W - 24)
+          doc.text(dl, 12, y)
         }
       }
     } catch (_) { /* skip image if error */ }

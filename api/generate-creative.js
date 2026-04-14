@@ -6,10 +6,10 @@
 export const maxDuration = 60
 
 const STYLE_PROMPTS = {
-  profesional: 'Corporate professional style, clean white background, Hutrit brand green (#0D5C54), modern typography, business context, high quality',
-  minimalista: 'Minimalist design, lots of white space, one strong accent color (#0D9488 teal), geometric shapes, clean and modern',
-  impacto:     'Bold impactful design, dark background (#0D1117), bright accent colors (teal and white), strong contrast, tech startup feel',
-  lifestyle:   'Warm lifestyle photography feel, diverse Latin American professionals, collaborative workspace, natural light, authentic and aspirational',
+  profesional: 'Corporate professional aesthetic: clean gradient background in deep teal (#0D5C54) to dark navy, sophisticated geometric abstract shapes, subtle grid pattern overlay, premium brand feel, modern sans-serif design language, polished and authoritative',
+  cercano:     'Warm and human aesthetic: soft gradient background, organic flowing shapes, warm teal and sage green palette, approachable and friendly visual language, people-centric design with abstract human silhouettes, welcoming and trustworthy',
+  impacto:     'Bold high-impact design: dramatic dark background (#0D1117 near-black), electric teal (#0D9488) and bright green (#22C55E) neon accent glows, dynamic diagonal composition, strong geometric forms, tech-forward and energetic, cinematic quality',
+  inspirador:  'Aspirational and uplifting aesthetic: bright airy background with golden hour light, soft gradient from teal to emerald, rising or ascending visual motifs (arrows, stairs, stars), optimistic and motivational energy, premium lifestyle brand quality',
 }
 
 export default async function handler(req, res) {
@@ -23,18 +23,26 @@ export default async function handler(req, res) {
 
   const styleContext = STYLE_PROMPTS[style] || STYLE_PROMPTS.profesional
 
-  const fullPrompt = `Create a social media post image for Hutrit Europa, a talent platform connecting Latin American professionals with European companies.
+  const fullPrompt = `Create a stunning, award-winning social media creative image. This will be used as a brand post on Instagram and LinkedIn.
 
-Image concept: ${prompt.trim()}
+BRAND CONTEXT: ${prompt.trim()}
 
-Visual style: ${styleContext}
+VISUAL STYLE DIRECTION: ${styleContext}
 
-Requirements:
-- Square format (1:1 ratio), optimized for Instagram and LinkedIn
-- Include subtle Hutrit brand elements (teal/dark green palette)
-- Professional, aspirational, modern aesthetic
-- No text overlays needed (text added separately)
-- High contrast, visually striking`
+TECHNICAL REQUIREMENTS:
+- Perfect square 1:1 ratio composition
+- Ultra-high resolution, photorealistic or premium illustration quality
+- NO text, NO words, NO letters anywhere in the image
+- The composition should feel like a premium brand campaign from a Fortune 500 company
+- Rich depth: foreground, midground and background layers
+- Sophisticated color grading with the brand's teal/green palette (#0D9488, #0D5C54, #22C55E)
+
+COMPOSITION RULES:
+- Strong focal point centered or following rule of thirds
+- Cinematic lighting with soft shadows and highlights
+- Abstract or semi-abstract — evoke emotion, not literal illustration
+- Premium texture and detail that rewards close inspection
+- The image alone should communicate success, growth, and professionalism`
 
   try {
     // Use Gemini imagen API
