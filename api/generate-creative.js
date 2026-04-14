@@ -61,6 +61,8 @@ COMPOSITION RULES:
 - Premium texture and detail that rewards close inspection
 - The image alone should communicate success, growth, and professionalism`
 
+  const debugErrors = []
+
   try {
     // Try Imagen 3 first
     const resp = await fetch(
@@ -76,41 +78,41 @@ COMPOSITION RULES:
     )
 
     if (!resp.ok) {
-      return await generateWithGeminiFlash(res, fullPrompt, apiKey, prompt)
+      const errData = await resp.json().catch(() => ({}))
+      debugErrors.push(`imagen-3: ${resp.status} ${errData.error?.message || errData.error?.status || ''}`)
+    } else {
+      const data = await resp.json()
+      const prediction = data.predictions?.[0]
+      if (prediction?.bytesBase64Encoded) {
+        const b64 = prediction.bytesBase64Encoded
+        const mimeType = prediction.mimeType || 'image/png'
+        const imageUrl = await uploadToImgBB(b64, `hutrit-creativo-${Date.now()}`)
+        return res.json({ success: true, imageBase64: b64, mimeType, imageUrl, prompt: prompt.trim() })
+      }
+      debugErrors.push('imagen-3: no prediction returned')
     }
-
-    const data = await resp.json()
-    const prediction = data.predictions?.[0]
-
-    if (!prediction?.bytesBase64Encoded) {
-      return await generateWithGeminiFlash(res, fullPrompt, apiKey, prompt)
-    }
-
-    const b64 = prediction.bytesBase64Encoded
-    const mimeType = prediction.mimeType || 'image/png'
-    const imgName = `hutrit-creativo-${Date.now()}`
-    const imageUrl = await uploadToImgBB(b64, imgName)
-
-    return res.json({ success: true, imageBase64: b64, mimeType, imageUrl, prompt: prompt.trim() })
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message })
+    debugErrors.push(`imagen-3: ${err.message}`)
   }
+
+  return generateWithGeminiFlash(res, fullPrompt, apiKey, prompt, debugErrors)
 }
 
-// Models that actually support native image output in Gemini API
+// Models that support native image output — ordered by preference
+// gemini-2.0-flash is the current stable model with image generation support
 const FLASH_MODELS = [
-  'gemini-2.0-flash-preview-image-generation',
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-exp',
+  { model: 'gemini-2.0-flash', version: 'v1beta' },
+  { model: 'gemini-2.0-flash-preview-image-generation', version: 'v1alpha' },
+  { model: 'gemini-2.0-flash', version: 'v1' },
 ]
 
-async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt) {
-  const modelErrors = []
+async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt, prevErrors = []) {
+  const modelErrors = [...prevErrors]
 
-  for (const model of FLASH_MODELS) {
+  for (const { model, version } of FLASH_MODELS) {
     try {
       const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -123,14 +125,14 @@ async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt) 
 
       const data = await resp.json()
       if (!resp.ok) {
-        modelErrors.push(`${model}: ${data.error?.message || data.error?.status || resp.status}`)
+        modelErrors.push(`${model}(${version}): ${data.error?.message || data.error?.status || resp.status}`)
         continue
       }
 
       const parts = data.candidates?.[0]?.content?.parts || []
       const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'))
       if (!imagePart) {
-        modelErrors.push(`${model}: no image in response (parts: ${parts.length})`)
+        modelErrors.push(`${model}(${version}): no image in response (parts: ${parts.length})`)
         continue
       }
 
@@ -140,9 +142,9 @@ async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt) 
 
       return res.json({ success: true, imageBase64: b64, mimeType, imageUrl, prompt: originalPrompt })
     } catch (err) {
-      modelErrors.push(`${model}: ${err.message}`)
+      modelErrors.push(`${model}(${version}): ${err.message}`)
     }
   }
 
-  return res.status(500).json({ success: false, errors: modelErrors, models_tried: FLASH_MODELS })
+  return res.status(500).json({ success: false, errors: modelErrors })
 }
