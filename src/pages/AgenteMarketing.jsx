@@ -112,9 +112,7 @@ export default function AgenteMarketing({ onDone, onBack }) {
         />
         {showModal && (
           <EmailCaptureModal
-            type="full"
             title="Descarga tu Pack de Marketing"
-            subtitle="Completa tus datos para descargar el PDF con toda la estrategia y el creativo visual."
             onConfirm={handleDownload}
             onClose={() => setShowModal(false)}
           />

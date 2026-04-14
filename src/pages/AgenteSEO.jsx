@@ -58,6 +58,9 @@ export default function AgenteSEO({ onDone, onBack }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: fields.email,
+        nombre: fields.nombre,
+        empresa: fields.empresa,
+        telefono: fields.telefono,
         agente: 'seo',
         empresa_analizada: data?.empresa || form.empresa,
       }),
@@ -75,9 +78,7 @@ export default function AgenteSEO({ onDone, onBack }) {
         <SEOResults data={data} onDownload={() => setShowModal(true)} onBack={onBack} />
         {showModal && (
           <EmailCaptureModal
-            type="simple"
             title="Descarga tu Informe SEO"
-            subtitle="Ingresa tu email para descargar el PDF con el análisis completo y el plan de acción."
             onConfirm={handleDownload}
             onClose={() => setShowModal(false)}
           />

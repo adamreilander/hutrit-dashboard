@@ -58,6 +58,9 @@ export default function AgenteVentas({ onDone, onBack }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: fields.email,
+        nombre: fields.nombre,
+        empresa: fields.empresa,
+        telefono: fields.telefono,
         agente: 'ventas',
         empresa_analizada: form.oferta?.slice(0, 80),
       }),
@@ -75,9 +78,7 @@ export default function AgenteVentas({ onDone, onBack }) {
         <VentasResults data={data} onDownload={() => setShowModal(true)} onBack={onBack} />
         {showModal && (
           <EmailCaptureModal
-            type="simple"
             title="Descarga tu Lista de Prospectos"
-            subtitle="Ingresa tu email para descargar el PDF con la lista completa y la estrategia de outreach."
             onConfirm={handleDownload}
             onClose={() => setShowModal(false)}
           />
