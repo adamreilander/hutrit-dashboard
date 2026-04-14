@@ -97,14 +97,15 @@ COMPOSITION RULES:
   }
 }
 
+// Models that actually support native image output in Gemini API
 const FLASH_MODELS = [
   'gemini-2.0-flash-preview-image-generation',
+  'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-exp',
-  'gemini-1.5-flash',
 ]
 
 async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt) {
-  let lastError = 'No image model available'
+  const modelErrors = []
 
   for (const model of FLASH_MODELS) {
     try {
@@ -121,11 +122,17 @@ async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt) 
       )
 
       const data = await resp.json()
-      if (!resp.ok) { lastError = data.error?.message || `${model} failed`; continue }
+      if (!resp.ok) {
+        modelErrors.push(`${model}: ${data.error?.message || data.error?.status || resp.status}`)
+        continue
+      }
 
       const parts = data.candidates?.[0]?.content?.parts || []
       const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'))
-      if (!imagePart) { lastError = `${model} returned no image`; continue }
+      if (!imagePart) {
+        modelErrors.push(`${model}: no image in response (parts: ${parts.length})`)
+        continue
+      }
 
       const b64 = imagePart.inlineData.data
       const mimeType = imagePart.inlineData.mimeType
@@ -133,10 +140,9 @@ async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt) 
 
       return res.json({ success: true, imageBase64: b64, mimeType, imageUrl, prompt: originalPrompt })
     } catch (err) {
-      lastError = err.message
+      modelErrors.push(`${model}: ${err.message}`)
     }
   }
 
-  // Return detailed error so we can debug from the browser network tab
-  return res.status(500).json({ success: false, error: lastError, models_tried: FLASH_MODELS })
+  return res.status(500).json({ success: false, errors: modelErrors, models_tried: FLASH_MODELS })
 }
