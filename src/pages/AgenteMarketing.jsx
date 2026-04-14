@@ -80,6 +80,19 @@ export default function AgenteMarketing({ onDone, onBack }) {
   const handleDownload = (fields) => {
     generateMarketingReportPDF(data, fields, imageBase64)
     setShowModal(false)
+    // Fire-and-forget lead capture
+    fetch('/api/capture-lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: fields.email,
+        nombre: fields.nombre,
+        empresa: fields.empresa,
+        telefono: fields.telefono,
+        agente: 'marketing',
+        empresa_analizada: form.empresa,
+      }),
+    }).catch(() => {})
     setTimeout(onDone, 400)
   }
 

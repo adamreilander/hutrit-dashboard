@@ -52,6 +52,16 @@ export default function AgenteVentas({ onDone, onBack }) {
   const handleDownload = (fields) => {
     generateVentasReportPDF(data, fields.email)
     setShowModal(false)
+    // Fire-and-forget lead capture
+    fetch('/api/capture-lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: fields.email,
+        agente: 'ventas',
+        empresa_analizada: form.oferta?.slice(0, 80),
+      }),
+    }).catch(() => {})
     setTimeout(onDone, 400)
   }
 
