@@ -449,3 +449,348 @@ export function generateSEOPDF(empresa = 'hutrit.com', issues = [], metrics = {}
   addPageFooter(doc, pageNum, 2)
   doc.save(filename('SEO_Hutrit', empresa))
 }
+
+// ─── Demo: SEO Report ─────────────────────────────────────────────────────────
+
+export function generateSEOReportPDF(data = {}, email = '') {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.getWidth()
+  let pageNum = 1
+
+  addCover(doc, 'Informe SEO', data.empresa || 'Tu empresa', data.sector || '', 'Diagnóstico de posicionamiento y plan de acción')
+  addPageFooter(doc, pageNum, 3)
+
+  // Page 2: Score + Keywords + Competitors
+  doc.addPage(); pageNum++
+  addPageHeader(doc, data.empresa || '')
+  let y = 24
+
+  // Score banner
+  doc.setFillColor(...C.accent)
+  doc.roundedRect(12, y, W - 24, 20, 4, 4, 'F')
+  doc.setTextColor(...C.white)
+  doc.setFontSize(10); doc.setFont(undefined, 'bold')
+  doc.text('SCORE SEO GENERAL', 20, y + 7)
+  doc.setFontSize(18); doc.text(`${data.puntuacion || '—'} / 100`, W - 20, y + 13, { align: 'right' })
+  y += 28
+
+  if (data.resumen) {
+    doc.setTextColor(...C.text); doc.setFontSize(10); doc.setFont(undefined, 'normal')
+    const lines = doc.splitTextToSize(data.resumen, W - 24)
+    doc.text(lines, 12, y); y += lines.length * 5 + 10
+  }
+
+  if (data.keywords?.length) {
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Keywords de alto impacto', 12, y); y += 4
+    autoTable(doc, {
+      startY: y,
+      head: [['Keyword', 'Volumen', 'Dificultad', 'Oportunidad']],
+      body: data.keywords.map(k => [k.kw, (k.volumen || '').toUpperCase(), (k.dificultad || '').toUpperCase(), k.dificultad === 'baja' ? 'ALTA' : k.dificultad === 'media' ? 'MEDIA' : 'BAJA']),
+      headStyles: { fillColor: C.primary, textColor: C.white, fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 9, textColor: C.text },
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center', fontStyle: 'bold' } },
+      alternateRowStyles: { fillColor: [247, 250, 250] },
+      margin: { left: 12, right: 12 },
+    })
+    y = doc.lastAutoTable.finalY + 12
+  }
+
+  if (data.competidores?.length) {
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Competidores identificados', 12, y); y += 4
+    autoTable(doc, {
+      startY: y,
+      head: [['Empresa', 'Dominio', 'Posición']],
+      body: data.competidores.map(c => [c.nombre, c.dominio || '—', c.posicion || 'Competidor']),
+      headStyles: { fillColor: C.primary, textColor: C.white, fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 9, textColor: C.text },
+      columnStyles: { 0: { fontStyle: 'bold' } },
+      alternateRowStyles: { fillColor: [247, 250, 250] },
+      margin: { left: 12, right: 12 },
+    })
+  }
+
+  addPageFooter(doc, pageNum, 3)
+
+  // Page 3: Issues + Plan
+  doc.addPage(); pageNum++
+  addPageHeader(doc, data.empresa || '')
+  y = 24
+
+  if (data.problemas?.length) {
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Problemas técnicos detectados', 12, y); y += 4
+    autoTable(doc, {
+      startY: y,
+      head: [['Impacto', 'Problema', 'Solución recomendada']],
+      body: data.problemas.map(p => [(p.impacto || 'MEDIO').toUpperCase(), p.titulo, p.solucion || '']),
+      headStyles: { fillColor: C.primary, textColor: C.white, fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 9, textColor: C.text },
+      columnStyles: { 0: { cellWidth: 22, halign: 'center', fontStyle: 'bold' }, 1: { fontStyle: 'bold' } },
+      alternateRowStyles: { fillColor: [247, 250, 250] },
+      margin: { left: 12, right: 12 },
+      didParseCell(data) {
+        if (data.section === 'body' && data.column.index === 0) {
+          const v = (data.cell.raw || '').toLowerCase()
+          if (v === 'alto') data.cell.styles.textColor = C.red
+          else if (v === 'medio') data.cell.styles.textColor = C.amber
+          else data.cell.styles.textColor = C.green
+        }
+      },
+    })
+    y = doc.lastAutoTable.finalY + 12
+  }
+
+  if (data.plan_accion?.length) {
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Plan de acción prioritario', 12, y); y += 8
+    data.plan_accion.forEach((p, i) => {
+      doc.setFillColor(...C.accent); doc.circle(17, y + 1.5, 3, 'F')
+      doc.setTextColor(...C.white); doc.setFontSize(8); doc.setFont(undefined, 'bold')
+      doc.text(String(i + 1), 17, y + 2.5, { align: 'center' })
+      doc.setTextColor(...C.text); doc.setFont(undefined, 'normal'); doc.setFontSize(10)
+      const lines = doc.splitTextToSize(p.accion, W - 56)
+      doc.text(lines, 24, y + 1)
+      doc.setTextColor(...C.accent); doc.setFontSize(9); doc.setFont(undefined, 'bold')
+      doc.text(p.plazo || '', W - 12, y + 1, { align: 'right' })
+      y += Math.max(8, lines.length * 5 + 4)
+    })
+  }
+
+  if (email) {
+    y += 6
+    doc.setTextColor(...C.muted); doc.setFontSize(9); doc.setFont(undefined, 'normal')
+    doc.text(`Informe generado para: ${email}`, 12, y)
+  }
+
+  addPageFooter(doc, pageNum, 3)
+  doc.save(filename('Informe_SEO', data.empresa || 'empresa'))
+}
+
+// ─── Demo: Marketing Report ───────────────────────────────────────────────────
+
+export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 = null) {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.getWidth()
+  let pageNum = 1
+
+  addCover(doc, 'Pack de Marketing', data.empresa || 'Tu empresa', data.sector || '', 'Estrategia de contenido, posts y creativo visual')
+  addPageFooter(doc, pageNum, 3)
+
+  // Page 2: Strategy + LinkedIn
+  doc.addPage(); pageNum++
+  addPageHeader(doc, data.empresa || '')
+  let y = 24
+
+  if (data.estrategia) {
+    doc.setFillColor(...C.accent)
+    doc.roundedRect(12, y, W - 24, 18, 4, 4, 'F')
+    doc.setTextColor(...C.white); doc.setFontSize(9); doc.setFont(undefined, 'bold')
+    doc.text('ESTRATEGIA', 20, y + 6)
+    doc.setFontSize(10); doc.setFont(undefined, 'normal')
+    const sl = doc.splitTextToSize(data.estrategia, W - 48)
+    doc.text(sl, 20, y + 13)
+    y += Math.max(18, sl.length * 5 + 14) + 8
+  }
+
+  if (data.posts_linkedin?.length) {
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Posts para LinkedIn', 12, y); y += 8
+
+    data.posts_linkedin.forEach((post, i) => {
+      if (y > 240) { doc.addPage(); pageNum++; addPageHeader(doc, data.empresa || ''); y = 24 }
+      doc.setFillColor(...C.surface); doc.roundedRect(12, y, W - 24, 4, 2, 2, 'F')
+      doc.setTextColor(...C.primary); doc.setFontSize(10); doc.setFont(undefined, 'bold')
+      doc.text(`Post ${i + 1}`, 16, y + 2.5)
+      y += 8
+      if (post.hook) {
+        doc.setTextColor(...C.accent); doc.setFontSize(10); doc.setFont(undefined, 'bold')
+        const hl = doc.splitTextToSize(`"${post.hook}"`, W - 24)
+        doc.text(hl, 12, y); y += hl.length * 5 + 4
+      }
+      doc.setTextColor(...C.text); doc.setFontSize(9); doc.setFont(undefined, 'normal')
+      const cl = doc.splitTextToSize(post.copy || '', W - 24)
+      doc.text(cl, 12, y); y += cl.length * 5 + 12
+    })
+  }
+
+  addPageFooter(doc, pageNum, 3)
+
+  // Page 3: Instagram + Calendar
+  doc.addPage(); pageNum++
+  addPageHeader(doc, data.empresa || '')
+  y = 24
+
+  if (data.posts_instagram?.length) {
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Posts para Instagram', 12, y); y += 8
+
+    data.posts_instagram.forEach((post, i) => {
+      if (post.titulo) {
+        doc.setTextColor(...C.primary); doc.setFontSize(10); doc.setFont(undefined, 'bold')
+        doc.text(post.titulo, 12, y); y += 6
+      }
+      doc.setTextColor(...C.text); doc.setFontSize(9); doc.setFont(undefined, 'normal')
+      const cl = doc.splitTextToSize(post.copy || '', W - 24)
+      doc.text(cl, 12, y); y += cl.length * 5 + 4
+      if (post.hashtags?.length) {
+        doc.setTextColor(...C.accent); doc.setFontSize(9)
+        doc.text(post.hashtags.map(h => `#${h}`).join(' '), 12, y); y += 10
+      }
+      y += 4
+    })
+  }
+
+  if (data.calendario?.length) {
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Calendario editorial', 12, y); y += 4
+    autoTable(doc, {
+      startY: y,
+      head: [['Período', 'Acción recomendada']],
+      body: data.calendario.map(c => [c.semana, c.accion]),
+      headStyles: { fillColor: C.primary, textColor: C.white, fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 9, textColor: C.text },
+      columnStyles: { 0: { cellWidth: 30, fontStyle: 'bold' } },
+      alternateRowStyles: { fillColor: [247, 250, 250] },
+      margin: { left: 12, right: 12 },
+    })
+    y = doc.lastAutoTable.finalY + 12
+  }
+
+  if (imageBase64) {
+    try {
+      if (y > 180) { doc.addPage(); pageNum++; addPageHeader(doc, data.empresa || ''); y = 24 }
+      doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+      doc.text('Creativo visual generado', 12, y); y += 6
+      const imgH = 60
+      doc.addImage(imageBase64, 'JPEG', 12, y, 60, imgH)
+      if (data.creativo_concepto?.mensaje_clave) {
+        doc.setTextColor(...C.text); doc.setFontSize(10); doc.setFont(undefined, 'bold')
+        const ml = doc.splitTextToSize(data.creativo_concepto.mensaje_clave, W - 88)
+        doc.text(ml, 80, y + 10)
+        doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(...C.muted)
+        if (data.creativo_concepto.descripcion) {
+          const dl = doc.splitTextToSize(data.creativo_concepto.descripcion, W - 88)
+          doc.text(dl, 80, y + 20)
+        }
+      }
+    } catch (_) { /* skip image if error */ }
+  }
+
+  if (fields.email) {
+    const H = doc.internal.pageSize.getHeight()
+    doc.setPage(pageNum)
+    doc.setTextColor(...C.muted); doc.setFontSize(9); doc.setFont(undefined, 'normal')
+    doc.text(`Generado para: ${fields.nombre || ''} · ${fields.email}${fields.empresa ? ` · ${fields.empresa}` : ''}`, 12, H - 16)
+  }
+
+  addPageFooter(doc, pageNum, 3)
+  doc.save(filename('Pack_Marketing', data.empresa || 'empresa'))
+}
+
+// ─── Demo: Ventas / Prospects Report ─────────────────────────────────────────
+
+export function generateVentasReportPDF(data = {}, email = '') {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.getWidth()
+  let pageNum = 1
+
+  addCover(doc, 'Lista de Prospectos', data.oferta ? (data.oferta.slice(0, 40) + (data.oferta.length > 40 ? '...' : '')) : 'Tu oferta', '', 'Empresas calificadas y estrategia de outreach')
+  addPageFooter(doc, pageNum, 3)
+
+  // Page 2: Strategy + Prospects table
+  doc.addPage(); pageNum++
+  addPageHeader(doc, 'Prospectos')
+  let y = 24
+
+  if (data.estrategia_general) {
+    doc.setFillColor(...C.accent); doc.roundedRect(12, y, W - 24, 18, 4, 4, 'F')
+    doc.setTextColor(...C.white); doc.setFontSize(9); doc.setFont(undefined, 'bold')
+    doc.text('ESTRATEGIA DE VENTAS', 20, y + 6)
+    doc.setFontSize(10); doc.setFont(undefined, 'normal')
+    const sl = doc.splitTextToSize(data.estrategia_general, W - 48)
+    doc.text(sl, 20, y + 13)
+    y += Math.max(18, sl.length * 5 + 14) + 8
+  }
+
+  if (data.prospectos?.length) {
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Empresas objetivo', 12, y); y += 4
+    autoTable(doc, {
+      startY: y,
+      head: [['Empresa', 'Sector', 'Tamaño', 'Prioridad']],
+      body: data.prospectos.map(p => [p.empresa, p.sector, p.tamaño, (p.prioridad || 'MEDIA').toUpperCase()]),
+      headStyles: { fillColor: C.primary, textColor: C.white, fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 9, textColor: C.text },
+      columnStyles: { 0: { fontStyle: 'bold' }, 3: { halign: 'center', fontStyle: 'bold', cellWidth: 22 } },
+      alternateRowStyles: { fillColor: [247, 250, 250] },
+      margin: { left: 12, right: 12 },
+      didParseCell(d) {
+        if (d.section === 'body' && d.column.index === 3) {
+          const v = (d.cell.raw || '').toLowerCase()
+          if (v === 'alta') d.cell.styles.textColor = C.red
+          else if (v === 'media') d.cell.styles.textColor = C.amber
+          else d.cell.styles.textColor = C.green
+        }
+      },
+    })
+  }
+
+  addPageFooter(doc, pageNum, 3)
+
+  // Page 3: Outreach details
+  doc.addPage(); pageNum++
+  addPageHeader(doc, 'Outreach')
+  y = 24
+
+  const alta = (data.prospectos || []).filter(p => p.prioridad === 'alta')
+  if (alta.length) {
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Prospectos de alta prioridad', 12, y); y += 8
+
+    alta.forEach(p => {
+      if (y > 240) { doc.addPage(); pageNum++; addPageHeader(doc, 'Outreach'); y = 24 }
+      doc.setFillColor(...C.surface); doc.roundedRect(12, y, W - 24, 6, 2, 2, 'F')
+      doc.setTextColor(...C.primary); doc.setFontSize(10); doc.setFont(undefined, 'bold')
+      doc.text(p.empresa, 16, y + 4)
+      doc.setFillColor(...C.red); doc.roundedRect(W - 30, y + 1, 18, 4, 1, 1, 'F')
+      doc.setTextColor(...C.white); doc.setFontSize(7); doc.text('ALTA', W - 21, y + 4, { align: 'center' })
+      y += 10
+      if (p.por_que) {
+        doc.setTextColor(...C.text); doc.setFontSize(9); doc.setFont(undefined, 'normal')
+        const wl = doc.splitTextToSize(p.por_que, W - 24)
+        doc.text(wl, 12, y); y += wl.length * 5 + 4
+      }
+      if (p.angulo_outreach) {
+        doc.setFillColor(255, 247, 237); doc.roundedRect(12, y, W - 24, 10, 2, 2, 'F')
+        doc.setTextColor(120, 53, 15); doc.setFontSize(8); doc.setFont(undefined, 'bold')
+        doc.text('ÁNGULO:', 16, y + 4)
+        doc.setFont(undefined, 'normal'); doc.setFontSize(8)
+        const al = doc.splitTextToSize(p.angulo_outreach, W - 52)
+        doc.text(al, 38, y + 4)
+        y += Math.max(10, al.length * 4 + 6) + 6
+      }
+    })
+  }
+
+  if (data.email_template) {
+    if (y > 180) { doc.addPage(); pageNum++; addPageHeader(doc, 'Plantilla Email'); y = 24 }
+    doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+    doc.text('Plantilla de primer contacto', 12, y); y += 8
+    doc.setFillColor(...C.surface); const tl = doc.splitTextToSize(data.email_template, W - 36)
+    const th = tl.length * 5 + 12
+    doc.roundedRect(12, y, W - 24, th, 3, 3, 'F')
+    doc.setDrawColor(...C.border); doc.setLineWidth(0.3); doc.roundedRect(12, y, W - 24, th, 3, 3, 'S')
+    doc.setTextColor(...C.text); doc.setFontSize(9); doc.setFont(undefined, 'normal')
+    doc.text(tl, 18, y + 8); y += th + 6
+  }
+
+  if (email) {
+    doc.setTextColor(...C.muted); doc.setFontSize(9)
+    doc.text(`Generado para: ${email}`, 12, y)
+  }
+
+  addPageFooter(doc, pageNum, 3)
+  doc.save(filename('Lista_Prospectos', (data.prospectos?.[0]?.sector || 'ventas')))
+}
