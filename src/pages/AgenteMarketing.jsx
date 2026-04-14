@@ -286,9 +286,8 @@ function MarketingResults({ data, imageBase64, imageUrl, imageError, empresa, on
           )}
         </div>
 
+        {/* Posts grid — 2 columns */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 16 }}>
-
-          {/* LinkedIn posts */}
           {data.posts_linkedin?.length > 0 && (
             <div className="card fade-in">
               <div style={sectionTitle}>💼 Posts para LinkedIn</div>
@@ -304,8 +303,6 @@ function MarketingResults({ data, imageBase64, imageUrl, imageError, empresa, on
               ))}
             </div>
           )}
-
-          {/* Instagram posts */}
           {data.posts_instagram?.length > 0 && (
             <div className="card fade-in">
               <div style={sectionTitle}>📱 Copies para Instagram</div>
@@ -326,9 +323,10 @@ function MarketingResults({ data, imageBase64, imageUrl, imageError, empresa, on
               ))}
             </div>
           )}
+        </div>
 
-          {/* Creative image — always shown */}
-          <div className="card fade-in" style={{ gridColumn: 'span 2' }}>
+        {/* Creative image — full width, outside the 2-col grid */}
+        <div className="card fade-in">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div style={sectionTitle}>🎨 Creativo visual generado con IA</div>
               {/* Download button: use hosted URL if available, otherwise base64 inline download */}
@@ -418,7 +416,6 @@ function MarketingResults({ data, imageBase64, imageUrl, imageError, empresa, on
               ))}
             </div>
           )}
-        </div>
 
         {/* Download CTA */}
         <div className="fade-in" style={{

@@ -97,40 +97,45 @@ COMPOSITION RULES:
   }
 }
 
+const FLASH_MODELS = [
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash-preview-image-generation',
+  'gemini-2.0-flash-exp-image-generation',
+]
+
 async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt) {
-  try {
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: fullPrompt }] }],
-          generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
-        }),
-      }
-    )
+  let lastError = 'No image model available'
 
-    const data = await resp.json()
+  for (const model of FLASH_MODELS) {
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: fullPrompt }] }],
+            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+          }),
+        }
+      )
 
-    if (!resp.ok) {
-      return res.status(resp.status).json({ success: false, error: data.error?.message || 'Error de Gemini' })
+      const data = await resp.json()
+      if (!resp.ok) { lastError = data.error?.message || `${model} failed`; continue }
+
+      const parts = data.candidates?.[0]?.content?.parts || []
+      const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'))
+      if (!imagePart) { lastError = `${model} returned no image`; continue }
+
+      const b64 = imagePart.inlineData.data
+      const mimeType = imagePart.inlineData.mimeType
+      const imageUrl = await uploadToImgBB(b64, `hutrit-creativo-${Date.now()}`)
+
+      return res.json({ success: true, imageBase64: b64, mimeType, imageUrl, prompt: originalPrompt })
+    } catch (err) {
+      lastError = err.message
     }
-
-    const parts = data.candidates?.[0]?.content?.parts || []
-    const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'))
-
-    if (!imagePart) {
-      return res.status(500).json({ success: false, error: 'Gemini no devolvió imagen' })
-    }
-
-    const b64 = imagePart.inlineData.data
-    const mimeType = imagePart.inlineData.mimeType
-    const imgName = `hutrit-creativo-${Date.now()}`
-    const imageUrl = await uploadToImgBB(b64, imgName)
-
-    return res.json({ success: true, imageBase64: b64, mimeType, imageUrl, prompt: originalPrompt })
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message })
   }
+
+  return res.status(500).json({ success: false, error: lastError })
 }
