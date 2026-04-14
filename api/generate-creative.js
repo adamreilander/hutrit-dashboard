@@ -63,25 +63,22 @@ COMPOSITION RULES:
 
   const debugErrors = []
 
-  try {
-    // Try Imagen 3 first
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instances: [{ prompt: fullPrompt }],
-          parameters: { sampleCount: 1, aspectRatio: '1:1', safetyFilterLevel: 'block_some', personGeneration: 'allow_adult' },
-        }),
-      }
-    )
-
-    if (!resp.ok) {
-      const errData = await resp.json().catch(() => ({}))
-      debugErrors.push(`imagen-3: ${resp.status} ${errData.error?.message || errData.error?.status || ''}`)
-    } else {
+  // Try Imagen 4 fast (predict endpoint)
+  for (const imgModel of ['imagen-4.0-fast-generate-001', 'imagen-4.0-generate-001']) {
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${imgModel}:predict?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instances: [{ prompt: fullPrompt }],
+            parameters: { sampleCount: 1, aspectRatio: '1:1', safetyFilterLevel: 'block_some', personGeneration: 'allow_adult' },
+          }),
+        }
+      )
       const data = await resp.json()
+      if (!resp.ok) { debugErrors.push(`${imgModel}: ${resp.status} ${data.error?.message || ''}`); continue }
       const prediction = data.predictions?.[0]
       if (prediction?.bytesBase64Encoded) {
         const b64 = prediction.bytesBase64Encoded
@@ -89,19 +86,20 @@ COMPOSITION RULES:
         const imageUrl = await uploadToImgBB(b64, `hutrit-creativo-${Date.now()}`)
         return res.json({ success: true, imageBase64: b64, mimeType, imageUrl, prompt: prompt.trim() })
       }
-      debugErrors.push('imagen-3: no prediction returned')
+      debugErrors.push(`${imgModel}: no prediction returned`)
+    } catch (err) {
+      debugErrors.push(`${imgModel}: ${err.message}`)
     }
-  } catch (err) {
-    debugErrors.push(`imagen-3: ${err.message}`)
   }
 
   return generateWithGeminiFlash(res, fullPrompt, apiKey, prompt, debugErrors)
 }
 
-// gemini-2.0-flash-exp is the experimental model with native image generation
+// Image-capable generateContent models confirmed available for this API key
 const FLASH_MODELS = [
-  { model: 'gemini-2.0-flash-exp', version: 'v1beta' },
-  { model: 'gemini-2.0-flash-preview-image-generation', version: 'v1beta' },
+  { model: 'gemini-2.5-flash-image', version: 'v1beta' },
+  { model: 'gemini-3.1-flash-image-preview', version: 'v1beta' },
+  { model: 'gemini-3-pro-image-preview', version: 'v1beta' },
 ]
 
 async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt, prevErrors = []) {
