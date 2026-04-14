@@ -297,26 +297,28 @@ function VentasResults({ data, onDownload, onBack }) {
                   </div>
                 )}
 
-                {/* Contact info from Google Places */}
-                {(p.telefono || p.direccion || p.web) && (
-                  <div style={{
-                    marginLeft: 52, marginTop: 6,
-                    display: 'flex', flexWrap: 'wrap', gap: 8,
-                  }}>
+                {/* Contact info: Google Places + Hunter */}
+                {(p.telefono || p.direccion || p.web || p.email_contacto) && (
+                  <div style={{ marginLeft: 52, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {p.email_contacto && (
+                      <a href={`mailto:${p.email_contacto}`} style={{ ...contactChip, background: '#F0FDF4', borderColor: '#BBF7D0', color: '#065F46' }}>
+                        ✉️ {p.email_contacto}{p.nombre_contacto ? ` · ${p.nombre_contacto}` : ''}{p.cargo_contacto ? ` (${p.cargo_contacto})` : ''}
+                      </a>
+                    )}
                     {p.telefono && (
                       <a href={`tel:${p.telefono}`} style={contactChip}>
                         📞 {p.telefono}
+                      </a>
+                    )}
+                    {p.web && (
+                      <a href={p.web} target="_blank" rel="noopener noreferrer" style={contactChip}>
+                        🌐 {p.web.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                       </a>
                     )}
                     {p.direccion && (
                       <span style={{ ...contactChip, cursor: 'default' }}>
                         📍 {p.direccion}
                       </span>
-                    )}
-                    {p.web && (
-                      <a href={p.web} target="_blank" rel="noopener noreferrer" style={contactChip}>
-                        🌐 {p.web.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                      </a>
                     )}
                   </div>
                 )}

@@ -762,32 +762,44 @@ export function generateVentasReportPDF(data = {}, fields = {}) {
     doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
     doc.text('Empresas objetivo', 12, y); y += 4
 
+    const hasEmail = data.prospectos.some(p => p.email_contacto)
     const hasContactData = data.prospectos.some(p => p.telefono || p.web)
-    const tableHead = hasContactData
-      ? [['Empresa', 'Sector', 'Prioridad', 'Telefono', 'Web']]
-      : [['Empresa', 'Sector', 'Tamaño', 'Prioridad']]
 
-    const tableBody = data.prospectos.map(p => hasContactData
-      ? [
-          cleanText(p.empresa || ''),
-          cleanText(p.sector || ''),
-          (p.prioridad || 'MEDIA').toUpperCase(),
-          cleanText(p.telefono || '-'),
-          cleanText((p.web || '-').replace(/^https?:\/\//, '').replace(/\/$/, '').slice(0, 28)),
-        ]
-      : [
-          cleanText(p.empresa || ''),
-          cleanText(p.sector || ''),
-          cleanText(p.tamaño || ''),
-          (p.prioridad || 'MEDIA').toUpperCase(),
-        ]
-    )
+    let tableHead, tableBody, colStyles, prioColIdx
 
-    const colStyles = hasContactData
-      ? { 0: { fontStyle: 'bold', cellWidth: 42 }, 2: { halign: 'center', fontStyle: 'bold', cellWidth: 20 }, 3: { cellWidth: 28 }, 4: { cellWidth: 40 } }
-      : { 0: { fontStyle: 'bold' }, 3: { halign: 'center', fontStyle: 'bold', cellWidth: 22 } }
-
-    const prioColIdx = hasContactData ? 2 : 3
+    if (hasEmail) {
+      tableHead = [['Empresa', 'Sector', 'Prioridad', 'Email contacto', 'Tel / Web']]
+      tableBody = data.prospectos.map(p => [
+        cleanText(p.empresa || ''),
+        cleanText(p.sector || ''),
+        (p.prioridad || 'MEDIA').toUpperCase(),
+        cleanText(p.email_contacto || '-'),
+        cleanText([p.telefono, p.web ? p.web.replace(/^https?:\/\//, '').replace(/\/$/, '') : ''].filter(Boolean).join(' / ') || '-'),
+      ])
+      colStyles = { 0: { fontStyle: 'bold', cellWidth: 38 }, 2: { halign: 'center', fontStyle: 'bold', cellWidth: 18 }, 3: { cellWidth: 52 }, 4: { cellWidth: 40 } }
+      prioColIdx = 2
+    } else if (hasContactData) {
+      tableHead = [['Empresa', 'Sector', 'Prioridad', 'Telefono', 'Web']]
+      tableBody = data.prospectos.map(p => [
+        cleanText(p.empresa || ''),
+        cleanText(p.sector || ''),
+        (p.prioridad || 'MEDIA').toUpperCase(),
+        cleanText(p.telefono || '-'),
+        cleanText((p.web || '-').replace(/^https?:\/\//, '').replace(/\/$/, '').slice(0, 28)),
+      ])
+      colStyles = { 0: { fontStyle: 'bold', cellWidth: 42 }, 2: { halign: 'center', fontStyle: 'bold', cellWidth: 20 }, 3: { cellWidth: 28 }, 4: { cellWidth: 40 } }
+      prioColIdx = 2
+    } else {
+      tableHead = [['Empresa', 'Sector', 'Tamaño', 'Prioridad']]
+      tableBody = data.prospectos.map(p => [
+        cleanText(p.empresa || ''),
+        cleanText(p.sector || ''),
+        cleanText(p.tamaño || ''),
+        (p.prioridad || 'MEDIA').toUpperCase(),
+      ])
+      colStyles = { 0: { fontStyle: 'bold' }, 3: { halign: 'center', fontStyle: 'bold', cellWidth: 22 } }
+      prioColIdx = 3
+    }
 
     autoTable(doc, {
       startY: y,
@@ -847,11 +859,28 @@ export function generateVentasReportPDF(data = {}, fields = {}) {
         y += aBoxH + 4
       }
 
-      // Contact info from Google Places
+      // Contact info: email (Hunter) + telefono/web/direccion (Places)
+      if (p.email_contacto) {
+        const emailLine = [
+          cleanText(p.email_contacto),
+          p.nombre_contacto ? cleanText(p.nombre_contacto) : '',
+          p.cargo_contacto ? `(${cleanText(p.cargo_contacto)})` : '',
+        ].filter(Boolean).join('  ')
+        const el = doc.splitTextToSize(emailLine, W - 28)
+        const eBoxH = el.length * 4 + 8
+        doc.setFillColor(240, 253, 244); doc.roundedRect(12, y, W - 24, eBoxH, 2, 2, 'F')
+        doc.setDrawColor(187, 247, 208); doc.setLineWidth(0.2); doc.roundedRect(12, y, W - 24, eBoxH, 2, 2, 'S')
+        doc.setTextColor(6, 95, 70); doc.setFontSize(8); doc.setFont(undefined, 'bold')
+        doc.text('EMAIL:', 16, y + 5)
+        doc.setFont(undefined, 'normal')
+        doc.text(el, 34, y + 5)
+        y += eBoxH + 3
+      }
+
       const contactParts = []
       if (p.telefono) contactParts.push(`Tel: ${cleanText(p.telefono)}`)
-      if (p.direccion) contactParts.push(`Dir: ${cleanText(p.direccion)}`)
       if (p.web) contactParts.push(`Web: ${cleanText(p.web.replace(/^https?:\/\//, '').replace(/\/$/, ''))}`)
+      if (p.direccion) contactParts.push(`Dir: ${cleanText(p.direccion)}`)
       if (contactParts.length) {
         const cl = doc.splitTextToSize(contactParts.join('  |  '), W - 28)
         const cBoxH = cl.length * 4 + 8
@@ -859,10 +888,9 @@ export function generateVentasReportPDF(data = {}, fields = {}) {
         doc.setDrawColor(...C.border); doc.setLineWidth(0.2); doc.roundedRect(12, y, W - 24, cBoxH, 2, 2, 'S')
         doc.setTextColor(...C.muted); doc.setFontSize(8); doc.setFont(undefined, 'normal')
         doc.text(cl, 16, y + 5)
-        y += cBoxH + 6
-      } else {
-        y += 4
+        y += cBoxH + 4
       }
+      y += 2
     })
   }
 

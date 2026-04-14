@@ -1,7 +1,7 @@
 // POST /api/demo-ventas
 // Body: { oferta, sector_target?, ciudad?, tipo_empresa? }
-// Returns: structured prospect list + Google Places enrichment
-// Env: ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY (optional)
+// Returns: structured prospect list + Google Places + Hunter.io enrichment
+// Env: ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY (optional), HUNTER_API_KEY (optional)
 
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -9,8 +9,8 @@ export const maxDuration = 60
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// Enrich a single prospect with Google Places data
-async function enrichProspecto(empresa, ciudad, apiKey) {
+// Enrich with Google Places: telefono, direccion, web
+async function enrichPlaces(empresa, ciudad, apiKey) {
   try {
     const q = encodeURIComponent(`${empresa} ${ciudad || 'España'}`)
     const sr = await fetch(
@@ -30,6 +30,39 @@ async function enrichProspecto(empresa, ciudad, apiKey) {
       telefono: r.formatted_phone_number || r.international_phone_number || '',
       direccion: r.formatted_address || '',
       web: r.website || '',
+    }
+  } catch (_) {
+    return {}
+  }
+}
+
+// Enrich with Hunter.io: email + contacto
+async function enrichHunter(empresa, web, apiKey) {
+  try {
+    // Extract domain from web URL or derive from company name
+    let domain = ''
+    if (web) {
+      domain = web.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '')
+    }
+    if (!domain) return {}
+
+    const url = `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(domain)}&limit=3&api_key=${apiKey}`
+    const r = await fetch(url)
+    const d = await r.json()
+
+    const emails = d.data?.emails || []
+    if (!emails.length) return {}
+
+    // Prefer decision-makers: director, manager, head, founder, ceo, cto, vp
+    const priority = ['director', 'manager', 'head', 'founder', 'ceo', 'cto', 'vp', 'chief']
+    const best = emails.find(e =>
+      priority.some(p => (e.position || '').toLowerCase().includes(p))
+    ) || emails[0]
+
+    return {
+      email_contacto: best.value || '',
+      nombre_contacto: [best.first_name, best.last_name].filter(Boolean).join(' '),
+      cargo_contacto: best.position || '',
     }
   } catch (_) {
     return {}
@@ -84,20 +117,29 @@ Genera exactamente 8 prospectos: 2 prioridad alta, 3 media, 3 baja. Empresas rea
 
     const data = JSON.parse(jsonMatch[0])
 
-    // Enrich with Google Places if key is available
     const googleKey = process.env.GOOGLE_PLACES_API_KEY
-    const enrichDebug = { key_present: !!googleKey, enriched: 0, sample: null }
+    const hunterKey = process.env.HUNTER_API_KEY
 
-    if (googleKey && data.prospectos?.length) {
-      const enrichments = await Promise.all(
-        data.prospectos.map(p => enrichProspecto(p.empresa, ciudad, googleKey))
-      )
-      data.prospectos = data.prospectos.map((p, i) => ({ ...p, ...enrichments[i] }))
-      enrichDebug.enriched = enrichments.filter(e => e.telefono || e.web || e.direccion).length
-      enrichDebug.sample = enrichments[0] || null
+    if ((googleKey || hunterKey) && data.prospectos?.length) {
+      // Run Places enrichment first to get web domains
+      const placesData = googleKey
+        ? await Promise.all(data.prospectos.map(p => enrichPlaces(p.empresa, ciudad, googleKey)))
+        : data.prospectos.map(() => ({}))
+
+      // Then run Hunter using the web domain from Places (or fallback)
+      const hunterData = hunterKey
+        ? await Promise.all(data.prospectos.map((p, i) =>
+            enrichHunter(p.empresa, placesData[i]?.web || '', hunterKey)
+          ))
+        : data.prospectos.map(() => ({}))
+
+      data.prospectos = data.prospectos.map((p, i) => ({
+        ...p,
+        ...placesData[i],
+        ...hunterData[i],
+      }))
     }
 
-    data._debug_enrich = enrichDebug
     return res.json(data)
   } catch (err) {
     if (err instanceof SyntaxError) {
