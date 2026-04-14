@@ -98,12 +98,10 @@ COMPOSITION RULES:
   return generateWithGeminiFlash(res, fullPrompt, apiKey, prompt, debugErrors)
 }
 
-// Models that support native image output — ordered by preference
-// gemini-2.0-flash is the current stable model with image generation support
+// gemini-2.0-flash-exp is the experimental model with native image generation
 const FLASH_MODELS = [
-  { model: 'gemini-2.0-flash', version: 'v1beta' },
-  { model: 'gemini-2.0-flash-preview-image-generation', version: 'v1alpha' },
-  { model: 'gemini-2.0-flash', version: 'v1' },
+  { model: 'gemini-2.0-flash-exp', version: 'v1beta' },
+  { model: 'gemini-2.0-flash-preview-image-generation', version: 'v1beta' },
 ]
 
 async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt, prevErrors = []) {
@@ -118,7 +116,7 @@ async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt, 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: fullPrompt }] }],
-            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
           }),
         }
       )
