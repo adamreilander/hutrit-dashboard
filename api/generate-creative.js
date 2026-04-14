@@ -98,9 +98,9 @@ COMPOSITION RULES:
 }
 
 const FLASH_MODELS = [
-  'gemini-2.0-flash-exp',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash-exp',
+  'gemini-1.5-flash',
 ]
 
 async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt) {
@@ -137,5 +137,6 @@ async function generateWithGeminiFlash(res, fullPrompt, apiKey, originalPrompt) 
     }
   }
 
-  return res.status(500).json({ success: false, error: lastError })
+  // Return detailed error so we can debug from the browser network tab
+  return res.status(500).json({ success: false, error: lastError, models_tried: FLASH_MODELS })
 }

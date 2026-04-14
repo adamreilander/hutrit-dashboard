@@ -570,13 +570,32 @@ export function generateSEOReportPDF(data = {}, email = '') {
 
 // ─── Demo: Marketing Report ───────────────────────────────────────────────────
 
+// jsPDF uses Helvetica which can't render emojis or many unicode symbols.
+// This strips emojis and replaces common unicode bullets with ASCII equivalents.
+function cleanText(str = '') {
+  return str
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')  // emoji block
+    .replace(/[\u{2600}-\u{27BF}]/gu, '')     // misc symbols (☑, ✅, ⚡, etc.)
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')     // variation selectors
+    .replace(/•/g, '-')
+    .replace(/→/g, '>')
+    .replace(/←/g, '<')
+    .replace(/✓|✔/g, 'v')
+    .replace(/['']/g, "'")
+    .replace(/[""]/g, '"')
+    .replace(/…/g, '...')
+    .replace(/–|—/g, '-')
+    .trim()
+}
+
 export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 = null, imageUrl = null) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const W = doc.internal.pageSize.getWidth()
   let pageNum = 1
+  const totalPages = imageBase64 ? 4 : 3
 
   addCover(doc, 'Pack de Marketing', data.empresa || 'Tu empresa', data.sector || '', 'Estrategia de contenido, posts y creativo visual')
-  addPageFooter(doc, pageNum, 3)
+  addPageFooter(doc, pageNum, totalPages)
 
   // Page 2: Strategy + LinkedIn
   doc.addPage(); pageNum++
@@ -585,13 +604,14 @@ export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 =
 
   if (data.estrategia) {
     doc.setFillColor(...C.accent)
-    doc.roundedRect(12, y, W - 24, 18, 4, 4, 'F')
-    doc.setTextColor(...C.white); doc.setFontSize(9); doc.setFont(undefined, 'bold')
+    const stratLines = doc.splitTextToSize(cleanText(data.estrategia), W - 32)
+    const stratH = Math.max(18, stratLines.length * 5 + 10)
+    doc.roundedRect(12, y, W - 24, stratH, 4, 4, 'F')
+    doc.setTextColor(...C.white); doc.setFontSize(8); doc.setFont(undefined, 'bold')
     doc.text('ESTRATEGIA', 20, y + 6)
-    doc.setFontSize(10); doc.setFont(undefined, 'normal')
-    const sl = doc.splitTextToSize(data.estrategia, W - 48)
-    doc.text(sl, 20, y + 13)
-    y += Math.max(18, sl.length * 5 + 14) + 8
+    doc.setFontSize(9); doc.setFont(undefined, 'normal')
+    doc.text(stratLines, 20, y + 13)
+    y += stratH + 10
   }
 
   if (data.posts_linkedin?.length) {
@@ -599,23 +619,23 @@ export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 =
     doc.text('Posts para LinkedIn', 12, y); y += 8
 
     data.posts_linkedin.forEach((post, i) => {
-      if (y > 240) { doc.addPage(); pageNum++; addPageHeader(doc, data.empresa || ''); y = 24 }
-      doc.setFillColor(...C.surface); doc.roundedRect(12, y, W - 24, 4, 2, 2, 'F')
+      if (y > 245) { doc.addPage(); pageNum++; addPageHeader(doc, data.empresa || ''); addPageFooter(doc, pageNum, totalPages); y = 24 }
+      doc.setFillColor(...C.surface); doc.roundedRect(12, y, W - 24, 6, 2, 2, 'F')
       doc.setTextColor(...C.primary); doc.setFontSize(10); doc.setFont(undefined, 'bold')
-      doc.text(`Post ${i + 1}`, 16, y + 2.5)
-      y += 8
+      doc.text(`Post ${i + 1}`, 16, y + 4)
+      y += 10
       if (post.hook) {
         doc.setTextColor(...C.accent); doc.setFontSize(10); doc.setFont(undefined, 'bold')
-        const hl = doc.splitTextToSize(`"${post.hook}"`, W - 24)
+        const hl = doc.splitTextToSize(`"${cleanText(post.hook)}"`, W - 24)
         doc.text(hl, 12, y); y += hl.length * 5 + 4
       }
       doc.setTextColor(...C.text); doc.setFontSize(9); doc.setFont(undefined, 'normal')
-      const cl = doc.splitTextToSize(post.copy || '', W - 24)
-      doc.text(cl, 12, y); y += cl.length * 5 + 12
+      const cl = doc.splitTextToSize(cleanText(post.copy || ''), W - 24)
+      doc.text(cl, 12, y); y += cl.length * 5 + 14
     })
   }
 
-  addPageFooter(doc, pageNum, 3)
+  addPageFooter(doc, pageNum, totalPages)
 
   // Page 3: Instagram + Calendar
   doc.addPage(); pageNum++
@@ -626,29 +646,32 @@ export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 =
     doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
     doc.text('Posts para Instagram', 12, y); y += 8
 
-    data.posts_instagram.forEach((post, i) => {
+    data.posts_instagram.forEach((post) => {
+      if (y > 245) { doc.addPage(); pageNum++; addPageHeader(doc, data.empresa || ''); addPageFooter(doc, pageNum, totalPages); y = 24 }
       if (post.titulo) {
         doc.setTextColor(...C.primary); doc.setFontSize(10); doc.setFont(undefined, 'bold')
-        doc.text(post.titulo, 12, y); y += 6
+        doc.text(cleanText(post.titulo), 12, y); y += 7
       }
       doc.setTextColor(...C.text); doc.setFontSize(9); doc.setFont(undefined, 'normal')
-      const cl = doc.splitTextToSize(post.copy || '', W - 24)
+      const cl = doc.splitTextToSize(cleanText(post.copy || ''), W - 24)
       doc.text(cl, 12, y); y += cl.length * 5 + 4
       if (post.hashtags?.length) {
         doc.setTextColor(...C.accent); doc.setFontSize(9)
-        doc.text(post.hashtags.map(h => `#${h}`).join(' '), 12, y); y += 10
+        const htags = post.hashtags.map(h => `#${h.replace(/^#/, '')}`).join('  ')
+        doc.text(htags, 12, y); y += 8
       }
-      y += 4
+      y += 6
     })
   }
 
   if (data.calendario?.length) {
+    if (y > 200) { doc.addPage(); pageNum++; addPageHeader(doc, data.empresa || ''); addPageFooter(doc, pageNum, totalPages); y = 24 }
     doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
     doc.text('Calendario editorial', 12, y); y += 4
     autoTable(doc, {
       startY: y,
-      head: [['Período', 'Acción recomendada']],
-      body: data.calendario.map(c => [c.semana, c.accion]),
+      head: [['Periodo', 'Accion recomendada']],
+      body: data.calendario.map(c => [cleanText(c.semana || ''), cleanText(c.accion || '')]),
       headStyles: { fillColor: C.primary, textColor: C.white, fontStyle: 'bold', fontSize: 9 },
       bodyStyles: { fontSize: 9, textColor: C.text },
       columnStyles: { 0: { cellWidth: 30, fontStyle: 'bold' } },
@@ -658,48 +681,48 @@ export function generateMarketingReportPDF(data = {}, fields = {}, imageBase64 =
     y = doc.lastAutoTable.finalY + 12
   }
 
-  if (imageBase64) {
-    try {
-      doc.addPage(); pageNum++; addPageHeader(doc, data.empresa || ''); y = 24
-      doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
-      doc.text('Creativo visual generado con IA', 12, y); y += 8
-      // Square image — centered, max 140mm to fit on A4 page
-      const imgSize = Math.min(W - 24, 140)
-      const imgX = (W - imgSize) / 2
-      doc.addImage(imageBase64, 'PNG', imgX, y, imgSize, imgSize)
-      y += imgSize + 6
-      if (data.creativo_concepto?.mensaje_clave) {
-        doc.setTextColor(...C.text); doc.setFontSize(10); doc.setFont(undefined, 'bold')
-        const ml = doc.splitTextToSize(`${data.creativo_concepto.mensaje_clave}`, W - 24)
-        doc.text(ml, 12, y)
-        y += ml.length * 5 + 4
-        doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(...C.muted)
-        if (data.creativo_concepto.descripcion) {
-          const dl = doc.splitTextToSize(data.creativo_concepto.descripcion, W - 24)
-          doc.text(dl, 12, y)
-          y += dl.length * 4 + 6
-        }
-      }
-      // Clickable download link if image is hosted
-      if (imageUrl) {
-        doc.setFontSize(10); doc.setFont(undefined, 'bold')
-        doc.setTextColor(13, 148, 136) // teal
-        doc.textWithLink('⬇  Descargar creativo en alta resolución (PNG)', 12, y, { url: imageUrl })
-        doc.setTextColor(...C.muted); doc.setFontSize(8); doc.setFont(undefined, 'normal')
-        y += 5
-        doc.text(imageUrl, 12, y)
-      }
-    } catch (_) { /* skip image if error */ }
-  }
-
   if (fields.email) {
     const H = doc.internal.pageSize.getHeight()
     doc.setPage(pageNum)
     doc.setTextColor(...C.muted); doc.setFontSize(9); doc.setFont(undefined, 'normal')
-    doc.text(`Generado para: ${fields.nombre || ''} · ${fields.email}${fields.empresa ? ` · ${fields.empresa}` : ''}`, 12, H - 16)
+    doc.text(`Generado para: ${cleanText(fields.nombre || '')} · ${fields.email}${fields.empresa ? ` · ${cleanText(fields.empresa)}` : ''}`, 12, H - 16)
   }
 
-  addPageFooter(doc, pageNum, 3)
+  addPageFooter(doc, pageNum, totalPages)
+
+  // Page 4 (optional): Creative image
+  if (imageBase64) {
+    try {
+      doc.addPage(); pageNum++
+      addPageHeader(doc, data.empresa || '')
+      y = 24
+      doc.setTextColor(...C.text); doc.setFontSize(13); doc.setFont(undefined, 'bold')
+      doc.text('Creativo visual generado con IA', 12, y); y += 10
+      const imgSize = Math.min(W - 24, 130)
+      const imgX = (W - imgSize) / 2
+      doc.addImage(imageBase64, 'PNG', imgX, y, imgSize, imgSize)
+      y += imgSize + 8
+      if (data.creativo_concepto?.mensaje_clave) {
+        doc.setTextColor(...C.text); doc.setFontSize(10); doc.setFont(undefined, 'bold')
+        const ml = doc.splitTextToSize(cleanText(data.creativo_concepto.mensaje_clave), W - 24)
+        doc.text(ml, 12, y); y += ml.length * 5 + 4
+        if (data.creativo_concepto?.descripcion) {
+          doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(...C.muted)
+          const dl = doc.splitTextToSize(cleanText(data.creativo_concepto.descripcion), W - 24)
+          doc.text(dl, 12, y); y += dl.length * 4 + 6
+        }
+      }
+      if (imageUrl) {
+        doc.setFontSize(10); doc.setFont(undefined, 'bold'); doc.setTextColor(13, 148, 136)
+        doc.textWithLink('Descargar creativo en alta resolucion (PNG)', 12, y, { url: imageUrl })
+        doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(...C.muted)
+        y += 5
+        doc.text(imageUrl, 12, y)
+      }
+      addPageFooter(doc, pageNum, totalPages)
+    } catch (_) { /* skip image page on error */ }
+  }
+
   doc.save(filename('Pack_Marketing', data.empresa || 'empresa'))
 }
 
