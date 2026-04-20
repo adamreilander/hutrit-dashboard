@@ -4,6 +4,7 @@
 // Env: GEMINI_API_KEY, IMGBB_API_KEY (optional — enables hosted URL)
 
 export const maxDuration = 60
+import { validateRequest } from './_auth.js'
 
 const STYLE_PROMPTS = {
   profesional: 'Corporate professional aesthetic: clean gradient background in deep teal (#0D5C54) to dark navy, sophisticated geometric abstract shapes, subtle grid pattern overlay, premium brand feel, modern sans-serif design language, polished and authoritative',
@@ -31,6 +32,7 @@ async function uploadToImgBB(base64Data, name) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (!validateRequest(req, res)) return
 
   const { prompt, style = 'profesional' } = req.body
   if (!prompt?.trim()) return res.status(400).json({ error: 'prompt es requerido' })

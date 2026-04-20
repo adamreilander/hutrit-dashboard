@@ -3,11 +3,13 @@
 // Returns: structured SEO analysis JSON
 
 import Anthropic from '@anthropic-ai/sdk'
+import { validateRequest } from './_auth.js'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (!validateRequest(req, res)) return
 
   const { empresa, url, sector } = req.body || {}
   if (!empresa?.trim()) return res.status(400).json({ error: 'empresa es requerido' })

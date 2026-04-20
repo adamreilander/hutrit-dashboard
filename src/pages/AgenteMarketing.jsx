@@ -2,6 +2,7 @@ import { useState } from 'react'
 import EmailCaptureModal from '../components/EmailCaptureModal'
 import LoadingScreen from '../components/LoadingScreen'
 import { generateMarketingReportPDF } from '../utils/generatePDF'
+import { checkRateLimit, recordUsage, getDashboardToken } from '../utils/rateLimit'
 
 const LOADING_STEPS = [
   'Analizando identidad de marca...',
@@ -30,6 +31,8 @@ export default function AgenteMarketing({ onDone, onBack }) {
   const set = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
   const generate = async () => {
+    const { allowed } = checkRateLimit()
+    if (!allowed) { setError('Has alcanzado el límite de usos gratuitos por hoy. Vuelve mañana.'); return }
     if (!form.empresa.trim() || !form.descripcion.trim()) {
       setError('Ingresa el nombre y la descripción de tu empresa')
       return
@@ -45,7 +48,7 @@ export default function AgenteMarketing({ onDone, onBack }) {
     try {
       const contentRes = await fetch('/api/demo-marketing', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-dashboard-token': getDashboardToken() },
         body: JSON.stringify(form),
       })
       const contentData = await contentRes.json()
@@ -58,7 +61,7 @@ export default function AgenteMarketing({ onDone, onBack }) {
       try {
         const imgRes = await fetch('/api/generate-creative', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-dashboard-token': getDashboardToken() },
           body: JSON.stringify({
             prompt: `${form.empresa}: ${contentData.creativo_concepto?.descripcion || form.descripcion}. Sector: ${form.sector}.`,
             style: form.estilo,
@@ -74,6 +77,7 @@ export default function AgenteMarketing({ onDone, onBack }) {
       } catch (_) { imgFailed = true }
 
       clearInterval(interval)
+      recordUsage()
       setData(contentData)
       setImageBase64(imgBase64)
       setImageUrl(imgUrl)
@@ -137,10 +141,10 @@ export default function AgenteMarketing({ onDone, onBack }) {
     <div style={pageWrap}>
       <TopBar onBack={onBack} label="Agente Marketing" emoji="✨" accentColor="#22C55E" />
 
-      <div style={outerWrap}>
-        <div style={twoCol}>
+      <div className="agent-outer-wrap">
+        <div className="agent-two-col">
           {/* Left: Form */}
-          <div style={formCard}>
+          <div className="agent-form-card">
             <div style={{ marginBottom: 28 }}>
               <div style={agentBadge('#22C55E')}>✨ Agente Marketing</div>
               <h2 style={cardTitle}>Crea contenido listo para publicar</h2>
@@ -228,7 +232,7 @@ export default function AgenteMarketing({ onDone, onBack }) {
           </div>
 
           {/* Right: Info panel */}
-          <div style={infoCard}>
+          <div className="agent-info-card">
             <div style={{ fontSize: 32, marginBottom: 16 }}>✨</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 8, letterSpacing: '-0.01em' }}>
               ¿Qué incluye tu pack?
@@ -270,7 +274,7 @@ function MarketingResults({ data, imageBase64, imageUrl, imageError, empresa, on
     <div style={pageWrap}>
       <TopBar onBack={onBack} label="Agente Marketing" emoji="✨" accentColor="#22C55E" />
 
-      <div style={{ ...outerWrap, maxWidth: 960 }}>
+      <div className="agent-outer-wrap" style={{ maxWidth: 960 }}>
 
         {/* Header */}
         <div className="fade-in" style={{
@@ -455,12 +459,7 @@ function MarketingResults({ data, imageBase64, imageUrl, imageError, empresa, on
 
 function TopBar({ onBack, label, emoji, accentColor }) {
   return (
-    <div style={{
-      height: 58, background: '#fff',
-      borderBottom: '1px solid #C8E0DD',
-      display: 'flex', alignItems: 'center',
-      padding: '0 28px', gap: 14, flexShrink: 0,
-    }}>
+    <div className="agent-top-bar">
       <button
         onClick={onBack}
         style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#5A8A85', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 10px', borderRadius: 8, transition: 'all 0.15s' }}
@@ -501,10 +500,6 @@ const downloadBtnStyle = {
 }
 
 const pageWrap = { minHeight: '100vh', background: 'var(--h-surface)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans)' }
-const outerWrap = { flex: 1, padding: '32px 28px', maxWidth: 1040, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }
-const twoCol = { display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }
-const formCard = { background: '#fff', border: '1px solid #C8E0DD', borderRadius: 18, padding: '32px', boxShadow: '0 2px 12px rgba(13,92,84,0.06)' }
-const infoCard = { background: 'linear-gradient(160deg, #0D5C54 0%, #094840 100%)', borderRadius: 18, padding: '28px 24px', position: 'sticky', top: 32 }
 const cardTitle = { fontSize: 21, fontWeight: 800, color: '#0D2B28', marginBottom: 8, letterSpacing: '-0.025em', lineHeight: 1.2 }
 const cardSub = { fontSize: 13, color: '#5A8A85', lineHeight: 1.65 }
 const errorBox = { fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px' }

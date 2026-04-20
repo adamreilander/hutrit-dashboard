@@ -6,6 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 
 export const maxDuration = 60
+import { validateRequest } from './_auth.js'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -71,6 +72,7 @@ async function enrichHunter(empresa, web, apiKey) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (!validateRequest(req, res)) return
 
   const { oferta, sector_target, ciudad, tipo_empresa } = req.body || {}
   if (!oferta?.trim()) return res.status(400).json({ error: 'oferta es requerido' })

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import EmailCaptureModal from '../components/EmailCaptureModal'
 import LoadingScreen from '../components/LoadingScreen'
 import { generateSEOReportPDF } from '../utils/generatePDF'
+import { checkRateLimit, recordUsage, getDashboardToken } from '../utils/rateLimit'
 
 const LOADING_STEPS = [
   'Analizando presencia en buscadores...',
@@ -22,6 +23,8 @@ export default function AgenteSEO({ onDone, onBack }) {
   const set = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
 
   const analyze = async () => {
+    const { allowed, remaining } = checkRateLimit()
+    if (!allowed) { setError('Has alcanzado el límite de usos gratuitos por hoy. Vuelve mañana.'); return }
     if (!form.empresa.trim()) { setError('Ingresa el nombre de tu empresa'); return }
     setError('')
     setStep('loading')
@@ -34,12 +37,13 @@ export default function AgenteSEO({ onDone, onBack }) {
     try {
       const res = await fetch('/api/demo-seo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-dashboard-token': getDashboardToken() },
         body: JSON.stringify(form),
       })
       const result = await res.json()
       clearInterval(interval)
       if (!result || result.error) throw new Error(result?.error || 'Error en el análisis')
+      recordUsage()
       setData(result)
       setStep('results')
     } catch (err) {
@@ -92,10 +96,10 @@ export default function AgenteSEO({ onDone, onBack }) {
     <div style={pageWrap}>
       <TopBar onBack={onBack} label="Agente SEO" emoji="🔍" accentColor="#0D9488" />
 
-      <div style={outerWrap}>
-        <div style={twoCol}>
+      <div className="agent-outer-wrap">
+        <div className="agent-two-col">
           {/* Left: Form */}
-          <div style={formCard}>
+          <div className="agent-form-card">
             <div style={{ marginBottom: 28 }}>
               <div style={agentBadge('#0D9488')}>🔍 Agente SEO</div>
               <h2 style={cardTitle}>Analiza tu posicionamiento en buscadores</h2>
@@ -144,7 +148,7 @@ export default function AgenteSEO({ onDone, onBack }) {
           </div>
 
           {/* Right: Info panel */}
-          <div style={infoCard}>
+          <div className="agent-info-card">
             <div style={{ fontSize: 32, marginBottom: 16 }}>🔍</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 8, letterSpacing: '-0.01em' }}>
               ¿Qué incluye tu informe SEO?
@@ -187,7 +191,7 @@ function SEOResults({ data, onDownload, onBack }) {
     <div style={pageWrap}>
       <TopBar onBack={onBack} label="Agente SEO" emoji="🔍" accentColor="#0D9488" />
 
-      <div style={{ ...outerWrap, maxWidth: 920 }}>
+      <div className="agent-outer-wrap" style={{ maxWidth: 920 }}>
 
         {/* Score banner */}
         <div className="fade-in" style={{
@@ -324,12 +328,7 @@ function SEOResults({ data, onDownload, onBack }) {
 
 function TopBar({ onBack, label, emoji, accentColor }) {
   return (
-    <div style={{
-      height: 58, background: '#fff',
-      borderBottom: '1px solid #C8E0DD',
-      display: 'flex', alignItems: 'center',
-      padding: '0 28px', gap: 14, flexShrink: 0,
-    }}>
+    <div className="agent-top-bar">
       <button
         onClick={onBack}
         style={{
@@ -402,32 +401,6 @@ const pageWrap = {
   fontFamily: 'var(--font-sans)',
 }
 
-const outerWrap = {
-  flex: 1, padding: '32px 28px',
-  maxWidth: 1040, width: '100%',
-  margin: '0 auto',
-  display: 'flex', flexDirection: 'column', gap: 20,
-}
-
-const twoCol = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 340px',
-  gap: 20,
-  alignItems: 'start',
-}
-
-const formCard = {
-  background: '#fff',
-  border: '1px solid #C8E0DD',
-  borderRadius: 18, padding: '32px',
-  boxShadow: '0 2px 12px rgba(13,92,84,0.06)',
-}
-
-const infoCard = {
-  background: 'linear-gradient(160deg, #0D5C54 0%, #094840 100%)',
-  borderRadius: 18, padding: '28px 24px',
-  position: 'sticky', top: 32,
-}
 
 const downloadBanner = {
   background: '#fff',

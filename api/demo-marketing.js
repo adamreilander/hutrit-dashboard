@@ -3,11 +3,13 @@
 // Returns: structured marketing content JSON
 
 import Anthropic from '@anthropic-ai/sdk'
+import { validateRequest } from './_auth.js'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (!validateRequest(req, res)) return
 
   const { empresa, descripcion, sector, colores, estilo } = req.body || {}
   if (!empresa?.trim() || !descripcion?.trim()) {
